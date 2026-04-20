@@ -68,12 +68,15 @@ async function downloadPostPhotos() {
     if (!appState.current.shortcode) return null;
     const json = await getPostPhotos(appState.current.shortcode);
     if (!json) return null;
+    const captionRaw = json.caption && typeof json.caption === 'object' ? json.caption.text : null;
+    const caption = typeof captionRaw === 'string' ? captionRaw.trim() : '';
     const data = {
         date: json['taken_at'],
         user: {
             username: json.user['username'],
         },
-        media: []
+        media: [],
+        caption
     };
     function extractMediaData(item) {
         const isVideo = item['media_type'] !== 1;

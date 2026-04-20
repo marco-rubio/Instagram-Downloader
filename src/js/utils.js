@@ -31,6 +31,8 @@ function getFetchOptions() {
     };
 }
 
+const postDescriptionDownloadText = new WeakMap();
+
 function getValueByKey(obj, key) {
     if (typeof obj !== 'object' || obj === null) return null;
     const stack = [obj];
@@ -81,6 +83,17 @@ async function saveZip() {
     async function fetchSelectedMedia() {
         let count = 0;
         const results = await Promise.allSettled(media.map(async (media) => {
+            if (media.classList.contains('post-description-item')) {
+                const text = postDescriptionDownloadText.get(media) ?? '';
+                const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+                const data = {
+                    title: `${media.title.replaceAll(' | ', '_')}.txt`,
+                    data: blob
+                };
+                count++;
+                DOWNLOAD_BUTTON.textContent = `${count}/${media.length}`;
+                return data;
+            }
             const res = await fetch(media.src);
             const blob = await res.blob();
             const data = {
@@ -228,6 +241,33 @@ function renderMedia(data) {
         });
         fragment.appendChild(itemDOM);
     });
+    if (data.caption) {
+        const descriptionTitle = `${data.user.username} | description | ${date}`;
+        const DESCRIPTION_TEMPLATE =
+            `<div>
+				<div class="media-item post-description-item"></div>
+				<div class="overlay">✔</div>
+			</div>`;
+        const itemDOM = new DOMParser().parseFromString(DESCRIPTION_TEMPLATE, 'text/html').body.firstElementChild;
+        const descriptionEl = itemDOM.querySelector('.post-description-item');
+        const selectBox = itemDOM.querySelector('.overlay');
+        descriptionEl.setAttribute('title', descriptionTitle);
+        descriptionEl.textContent = data.caption;
+        postDescriptionDownloadText.set(descriptionEl, data.caption);
+        descriptionEl.addEventListener('click', (e) => {
+            if (TITLE_CONTAINER.classList.contains('multi-select')) {
+                selectBox.classList.toggle('checked');
+            }
+            else {
+                const fileBase = descriptionTitle.replaceAll(' | ', '_');
+                saveFile(
+                    new Blob([postDescriptionDownloadText.get(descriptionEl) ?? ''], { type: 'text/plain;charset=utf-8' }),
+                    `${fileBase}.txt`
+                );
+            }
+        });
+        fragment.appendChild(itemDOM);
+    }
     MEDIA_CONTAINER.appendChild(fragment);
     TITLE_CONTAINER.classList.remove('multi-select');
     setDownloadState('success');

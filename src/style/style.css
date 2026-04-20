@@ -155,6 +155,27 @@
     cursor: pointer;
 }
 
+.display-container>.media-container>div>.post-description-item {
+    outline: 1px solid rgb(var(--ig-separator));
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: var(--font-family-system);
+    font-size: var(--system-14-font-size);
+    line-height: 1.45;
+    color: rgb(var(--ig-primary-text));
+    background: rgba(var(--web-always-white), 0.65);
+    max-height: min(220px, 35vh);
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+.display-container.dark>.media-container>div>.post-description-item {
+    background: rgba(var(--ig-secondary-background), 0.75);
+    color: rgb(var(--ig-primary-text));
+}
+
 .download-button {
     width: 120px;
     height: 30px;
