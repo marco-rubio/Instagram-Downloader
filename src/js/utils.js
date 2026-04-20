@@ -32,6 +32,73 @@ function getFetchOptions() {
 }
 
 const postDescriptionDownloadText = new WeakMap();
+const mediaDownloadMeta = new WeakMap();
+const DEFAULT_FILENAME_TEMPLATE = '{username}_{id}_{date}.{extension}';
+const FILENAME_TEMPLATE_STORAGE_KEY = 'filenameTemplate';
+let cachedFilenameTemplate = null;
+
+if (chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes) => {
+        if (!changes[FILENAME_TEMPLATE_STORAGE_KEY]) return;
+        const nextValue = changes[FILENAME_TEMPLATE_STORAGE_KEY].newValue;
+        cachedFilenameTemplate = typeof nextValue === 'string' && nextValue.trim()
+            ? nextValue
+            : DEFAULT_FILENAME_TEMPLATE;
+    });
+}
+
+function getStorageArea() {
+    if (chrome.storage && chrome.storage.sync) return chrome.storage.sync;
+    return chrome.storage.local;
+}
+
+async function getFilenameTemplate() {
+    if (typeof cachedFilenameTemplate === 'string') return cachedFilenameTemplate;
+    const storage = getStorageArea();
+    return new Promise((resolve) => {
+        storage.get([FILENAME_TEMPLATE_STORAGE_KEY], (result) => {
+            const template = result?.[FILENAME_TEMPLATE_STORAGE_KEY];
+            cachedFilenameTemplate = typeof template === 'string' && template.trim()
+                ? template
+                : DEFAULT_FILENAME_TEMPLATE;
+            resolve(cachedFilenameTemplate);
+        });
+    });
+}
+
+function sanitizeFilename(name, fallback = 'download') {
+    const sanitized = name
+        .replace(/[\\/:*?"<>|]/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/[. ]+$/g, '');
+    return sanitized || fallback;
+}
+
+function renderFilenameTemplate(template, context) {
+    const carouselParsed = template.replace(/\{isCarousel\}([\s\S]*?)\{\/isCarousel\}/g, (_match, content) => {
+        return context.isCarousel ? content : '';
+    });
+    const filename = carouselParsed.replace(/\{([a-zA-Z]+)\}/g, (_match, token) => {
+        if (!(token in context)) return '';
+        const value = context[token];
+        return value === null || value === undefined ? '' : String(value);
+    });
+    return sanitizeFilename(filename);
+}
+
+function getDownloadFileName(template, context) {
+    return renderFilenameTemplate(template, {
+        username: context.username ?? '',
+        hash: context.hash ?? '',
+        id: context.id ?? '',
+        date: context.date ?? '',
+        time: context.time ?? '',
+        index: context.index ?? '',
+        extension: context.extension ?? '',
+        isCarousel: Boolean(context.isCarousel),
+    });
+}
 
 function getValueByKey(obj, key) {
     if (typeof obj !== 'object' || obj === null) return null;
@@ -78,31 +145,35 @@ async function saveZip() {
     DOWNLOAD_BUTTON.classList.add('loading');
     DOWNLOAD_BUTTON.textContent = 'Loading...';
     DOWNLOAD_BUTTON.disabled = true;
-    const media = Array.from(document.querySelectorAll('.overlay.checked')).map(item => item.previousElementSibling);
-    const zipFileName = media[0].title.replaceAll(' | ', '_') + '.zip';
+    const selectedMedia = Array.from(document.querySelectorAll('.overlay.checked')).map(item => item.previousElementSibling);
+    if (selectedMedia.length === 0) return resetDownloadState();
+    const firstItemName = selectedMedia[0].dataset.downloadName || 'download';
+    const firstItemMeta = mediaDownloadMeta.get(selectedMedia[0]) || {};
+    const zipBaseName = firstItemMeta.zipBaseName || firstItemName.replace(/\.[^./\\]+$/, '');
+    const zipFileName = `${sanitizeFilename(zipBaseName, 'download')}.zip`;
     async function fetchSelectedMedia() {
         let count = 0;
-        const results = await Promise.allSettled(media.map(async (media) => {
+        const results = await Promise.allSettled(selectedMedia.map(async (media) => {
+            const meta = mediaDownloadMeta.get(media) || {};
             if (media.classList.contains('post-description-item')) {
                 const text = postDescriptionDownloadText.get(media) ?? '';
                 const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
                 const data = {
-                    title: `${media.title.replaceAll(' | ', '_')}.txt`,
+                    title: meta.fileName || media.dataset.downloadName || 'description.txt',
                     data: blob
                 };
                 count++;
-                DOWNLOAD_BUTTON.textContent = `${count}/${media.length}`;
+                DOWNLOAD_BUTTON.textContent = `${count}/${selectedMedia.length}`;
                 return data;
             }
             const res = await fetch(media.src);
             const blob = await res.blob();
             const data = {
-                title: media.title.replaceAll(' | ', '_'),
+                title: meta.fileName || media.dataset.downloadName || 'media',
                 data: blob
             };
-            data.title = media.nodeName === 'VIDEO' ? `${data.title}.mp4` : `${data.title}.jpeg`;
             count++;
-            DOWNLOAD_BUTTON.textContent = `${count}/${media.length}`;
+            DOWNLOAD_BUTTON.textContent = `${count}/${selectedMedia.length}`;
             return data;
         }));
         results.forEach(promise => {
@@ -206,20 +277,44 @@ async function handleDownload() {
     renderMedia(data);
 }
 
-function renderMedia(data) {
+async function renderMedia(data) {
     const TITLE_CONTAINER = document.querySelector('.title-container').firstElementChild;
     const MEDIA_CONTAINER = document.querySelector('.media-container');
     MEDIA_CONTAINER.replaceChildren();
     if (!data) return;
     const fragment = document.createDocumentFragment();
-    const date = new Date(data.date * 1000).toISOString().split('T')[0];
-    data.media.forEach(item => {
+    const postDate = new Date(data.date * 1000);
+    const date = postDate.toISOString().split('T')[0];
+    const time = postDate.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' });
+    const filenameTemplate = await getFilenameTemplate();
+    const mediaCount = data.media.length;
+    const zipBaseName = getDownloadFileName(filenameTemplate, {
+        username: data.user.username,
+        hash: data.hash || '',
+        id: data.media[0]?.id || '',
+        date,
+        time,
+        index: '',
+        extension: '',
+        isCarousel: false
+    });
+    data.media.forEach((item, mediaIndex) => {
         const attributes = {
             class: 'media-item',
             src: item.url,
-            title: `${data.user.username} | ${item.id} | ${date}`,
             controls: ''
         };
+        const extension = item.isVideo ? 'mp4' : 'jpeg';
+        const fileName = getDownloadFileName(filenameTemplate, {
+            username: data.user.username,
+            hash: data.hash || '',
+            id: item.id,
+            date,
+            time,
+            index: mediaIndex + 1,
+            extension,
+            isCarousel: mediaCount > 1
+        });
         const ITEM_TEMPLATE =
             `<div>
 				${item.isVideo ? `<video></video>` : '<img/>'}
@@ -232,17 +327,28 @@ function renderMedia(data) {
             if (item.isVideo) media.setAttribute(key, attributes[key]);
             else if (key !== 'controls') media.setAttribute(key, attributes[key]);
         });
+        media.dataset.downloadName = fileName;
+        mediaDownloadMeta.set(media, { fileName, zipBaseName });
         media.addEventListener('click', (e) => {
             if (TITLE_CONTAINER.classList.contains('multi-select')) {
                 if (item.isVideo) e.preventDefault();
                 selectBox.classList.toggle('checked');
             }
-            else saveMedia(media, media.title.replaceAll(' | ', '_') + `${item.isVideo ? '.mp4' : '.jpeg'}`);
+            else saveMedia(media, fileName);
         });
         fragment.appendChild(itemDOM);
     });
     if (data.caption) {
-        const descriptionTitle = `${data.user.username} | description | ${date}`;
+        const descriptionFileName = getDownloadFileName(filenameTemplate, {
+            username: data.user.username,
+            hash: data.hash || '',
+            id: 'description',
+            date,
+            time,
+            index: '',
+            extension: 'txt',
+            isCarousel: false
+        });
         const DESCRIPTION_TEMPLATE =
             `<div>
 				<div class="media-item post-description-item"></div>
@@ -251,18 +357,18 @@ function renderMedia(data) {
         const itemDOM = new DOMParser().parseFromString(DESCRIPTION_TEMPLATE, 'text/html').body.firstElementChild;
         const descriptionEl = itemDOM.querySelector('.post-description-item');
         const selectBox = itemDOM.querySelector('.overlay');
-        descriptionEl.setAttribute('title', descriptionTitle);
+        descriptionEl.dataset.downloadName = descriptionFileName;
         descriptionEl.textContent = data.caption;
         postDescriptionDownloadText.set(descriptionEl, data.caption);
+        mediaDownloadMeta.set(descriptionEl, { fileName: descriptionFileName, zipBaseName });
         descriptionEl.addEventListener('click', (e) => {
             if (TITLE_CONTAINER.classList.contains('multi-select')) {
                 selectBox.classList.toggle('checked');
             }
             else {
-                const fileBase = descriptionTitle.replaceAll(' | ', '_');
                 saveFile(
                     new Blob([postDescriptionDownloadText.get(descriptionEl) ?? ''], { type: 'text/plain;charset=utf-8' }),
-                    `${fileBase}.txt`
+                    descriptionFileName
                 );
             }
         });

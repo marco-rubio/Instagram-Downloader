@@ -72,6 +72,7 @@ async function downloadPostPhotos() {
     const caption = typeof captionRaw === 'string' ? captionRaw.trim() : '';
     const data = {
         date: json['taken_at'],
+        hash: appState.current.shortcode || '',
         user: {
             username: json.user['username'],
         },

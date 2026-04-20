@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instagram Downloader - Options</title>
+    <link rel="stylesheet" href="./options.css">
+</head>
+
+<body>
+    <main class="container">
+        <h1>Filename template</h1>
+        <p class="description">
+            Configure how downloaded files are named. Supported variables:
+            <code>{username}</code>, <code>{hash}</code>, <code>{id}</code>, <code>{date}</code>,
+            <code>{time}</code>, <code>{index}</code>, <code>{extension}</code>.
+            Use <code>{isCarousel}...{/isCarousel}</code> for text that only appears when media count is greater than 1.
+        </p>
+        <label for="template">Template</label>
+        <textarea id="template" rows="5" spellcheck="false"></textarea>
+        <p class="example">
+            Example:
+            <code>{username} [{hash}] {isCarousel}- {index}{/isCarousel}.{extension}</code>
+        </p>
+        <div class="actions">
+            <button id="save" type="button">Save</button>
+            <button id="reset" type="button">Reset to default</button>
+            <span id="status" aria-live="polite"></span>
+        </div>
+    </main>
+    <script src="./options.js"></script>
+</body>
+
+</html>

@@ -68,6 +68,7 @@ async function downloadStoryPhotos(type = 'stories') {
     if (!json) return null;
     const data = {
         date: json.items[0]['taken_at'],
+        hash: type === 'highlights' ? appState.current.highlights : '',
         user: {
             username: json.user['username'],
         },

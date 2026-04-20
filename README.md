@@ -30,6 +30,36 @@ This extension should work fine on the following browsers with `fetch()` API and
 
 * If you scroll on the home page, this app will auto detect the post you wanna download so you don't have to click to comment section to open modal. Thanks to ReactFiber.
 
+## Filename template options
+
+You can configure file naming from the extension options page:
+
+* Open `chrome://extensions`
+* Find `Instagram Downloader` and open `Extension options`
+* Edit and save your filename template
+
+Supported variables:
+
+* `{username}`
+* `{hash}` (`shortcode` for post/reel, highlight id for highlights)
+* `{id}` (media id, or `description` for caption file)
+* `{date}` (`YYYY-MM-DD`)
+* `{time}` (`HH:mm`, 24-hour format)
+* `{index}` (1-based ordinal for media items only)
+* `{extension}` (`jpeg`, `mp4`, `txt`, ...)
+
+Conditional block:
+
+* `{isCarousel}...{/isCarousel}` renders only when media count is greater than `1`
+* Description files never render `{isCarousel}...{/isCarousel}`
+* Description files always use `.txt`
+
+Example template:
+
+```
+{username} [{hash}] {isCarousel}- {index}{/isCarousel}.{extension}
+```
+
 ## Features
 
 * Download posts ✔
