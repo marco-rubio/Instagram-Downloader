@@ -198,6 +198,32 @@
     box-shadow: 0 4px 12px 0 var(--shadow-2);
     /* z-index: 1000000; */
 }
+
+.download-zip-button {
+    width: 120px;
+    height: 30px;
+    color: white;
+    outline: none;
+    font-family: var(--font-family-system);
+    font-size: var(--system-16-font-size);
+    font-weight: 600;
+    border: none;
+    border-radius: 15px;
+    position: fixed;
+    bottom: 62px;
+    inset-inline-end: 34px;
+    text-align: center;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: pointer;
+    background-color: rgba(var(--ig-colors-button-primary-background), 0.85);
+    transition: 0.3s ease;
+    box-shadow: 0 4px 12px 0 var(--shadow-2);
+}
+
+.download-zip-button:hover {
+    background-color: rgb(var(--ig-colors-button-primary-background--hover));
+}
 .download-button:hover {
     background-color: rgb(var(--ig-colors-button-primary-background--hover));
 }
@@ -205,6 +231,11 @@
 .download-button.loading {
     cursor: default;
     background-color: rgb(var(--ig-colors-button-primary-background--pressed));
+}
+
+.download-zip-button.loading {
+    cursor: default;
+    opacity: 0.75;
 }
 
 /* Support bottom navigation */
@@ -224,6 +255,19 @@
         height: 50px;
     }
 
+    .download-zip-button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        border-radius: 50%;
+        bottom: 130px;
+        right: 20px;
+        font-size: 0;
+        width: 50px;
+        height: 50px;
+    }
+
     .download-button:before {
         content: '⇓';
         display: inline-block;
@@ -232,6 +276,13 @@
         top: 60%;
         left: 50%;
         transform: translate(-50%, -50%);
+    }
+
+    .download-zip-button:before {
+        content: 'ZIP';
+        display: inline-block;
+        font-size: 14px;
+        font-weight: 700;
     }
 
     .display-container {

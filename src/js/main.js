@@ -121,13 +121,15 @@ const appState = Object.freeze((() => {
                     </p>
                 </div>
             </div>
-            <button class="download-button">Download</button>`));
+            <button class="download-button">Download</button>
+            <button class="download-zip-button">Download ZIP</button>`));
     }
     function handleEvents() {
         const ESC_BUTTON = document.querySelector('.esc-button');
         const TITLE_CONTAINER = document.querySelector('.title-container').firstElementChild;
         const DISPLAY_CONTAINER = document.querySelector('.display-container');
         const DOWNLOAD_BUTTON = document.querySelector('.download-button');
+        const ZIP_DOWNLOAD_BUTTON = document.querySelector('.download-zip-button');
         const IGNORE_FOCUS_ELEMENTS = ['INPUT', 'TEXTAREA'];
         const ESC_EVENT_KEYS = ['Escape', 'C', 'c'];
         const DOWNLOAD_EVENT_KEYS = ['D'];
@@ -187,6 +189,7 @@ const appState = Object.freeze((() => {
         }
         function hideExtension() {
             DOWNLOAD_BUTTON.setAttribute('hidden', 'true');
+            ZIP_DOWNLOAD_BUTTON.setAttribute('hidden', 'true');
             DISPLAY_CONTAINER.classList.add('hide');
             DISPLAY_CONTAINER.setAttribute('style', 'display: none;');
             // Usage requestAnimationFrame to bypass transition attribute
@@ -196,6 +199,7 @@ const appState = Object.freeze((() => {
         }
         function showExtension() {
             DOWNLOAD_BUTTON.removeAttribute('hidden');
+            ZIP_DOWNLOAD_BUTTON.removeAttribute('hidden');
         }
         function handleChatTab() {
             const reactRoot = document.body.querySelector('[id]');
@@ -279,6 +283,7 @@ const appState = Object.freeze((() => {
             TITLE_CONTAINER.classList.toggle('multi-select');
         }, handleSelectAll);
         DOWNLOAD_BUTTON.addEventListener('click', handleDownload);
+        ZIP_DOWNLOAD_BUTTON.addEventListener('click', handleZipShortcutDownload);
         window.addEventListener('online', () => {
             DISPLAY_CONTAINER.querySelectorAll('img , video').forEach(media => {
                 media.src = media.src;
@@ -302,9 +307,11 @@ const appState = Object.freeze((() => {
                 currentPath.match(IG_HIGHLIGHT_REGEX)
             ) {
                 DOWNLOAD_BUTTON.setAttribute('style', 'z-index: 1000000;');
+                ZIP_DOWNLOAD_BUTTON.setAttribute('style', 'z-index: 1000000;');
             }
             else {
                 DOWNLOAD_BUTTON.removeAttribute('style');
+                ZIP_DOWNLOAD_BUTTON.removeAttribute('style');
             }
         });
         window.addEventListener('userLoad', e => {
@@ -323,11 +330,12 @@ const appState = Object.freeze((() => {
         handleChatTab();
         if (window.location.pathname.startsWith('/direct')) {
             DOWNLOAD_BUTTON.setAttribute('hidden', 'true');
+            ZIP_DOWNLOAD_BUTTON.setAttribute('hidden', 'true');
             DISPLAY_CONTAINER.classList.add('hide');
         }
     }
     function run() {
-        document.querySelectorAll('.display-container, .download-button').forEach(node => {
+        document.querySelectorAll('.display-container, .download-button, .download-zip-button').forEach(node => {
             node.remove();
         });
         initUI();

@@ -131,6 +131,14 @@ function resetDownloadState() {
     DOWNLOAD_BUTTON.disabled = false;
 }
 
+function resetZipShortcutState() {
+    const ZIP_DOWNLOAD_BUTTON = document.querySelector('.download-zip-button');
+    if (!ZIP_DOWNLOAD_BUTTON) return;
+    ZIP_DOWNLOAD_BUTTON.classList.remove('loading');
+    ZIP_DOWNLOAD_BUTTON.textContent = 'Download ZIP';
+    ZIP_DOWNLOAD_BUTTON.disabled = false;
+}
+
 async function saveMedia(media, fileName) {
     try {
         const respone = await fetch(media.src);
@@ -205,6 +213,105 @@ async function saveZip() {
         console.log(error);
         resetDownloadState();
     }
+}
+
+async function saveFullPostZip() {
+    const ZIP_DOWNLOAD_BUTTON = document.querySelector('.download-zip-button');
+    if (!ZIP_DOWNLOAD_BUTTON) return;
+    ZIP_DOWNLOAD_BUTTON.classList.add('loading');
+    ZIP_DOWNLOAD_BUTTON.textContent = 'Loading...';
+    ZIP_DOWNLOAD_BUTTON.disabled = true;
+    const isPostPage = window.location.pathname.match(IG_POST_REGEX);
+    if (!isPostPage && appState.currentDisplay !== 'post') {
+        return resetZipShortcutState();
+    }
+    appState.setCurrentShortcode();
+    if (!appState.current.shortcode) return resetZipShortcutState();
+    const data = await downloadPostPhotos();
+    if (!data || !Array.isArray(data.media) || data.media.length === 0) {
+        return resetZipShortcutState();
+    }
+    const postDate = new Date(data.date * 1000);
+    const date = postDate.toISOString().split('T')[0];
+    const time = postDate.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' });
+    const filenameTemplate = await getFilenameTemplate();
+    const mediaCount = data.media.length;
+    const zipBaseName = getDownloadFileName(filenameTemplate, {
+        username: data.user.username,
+        hash: data.hash || '',
+        id: data.media[0]?.id || '',
+        date,
+        time,
+        index: '',
+        extension: '',
+        isCarousel: false
+    });
+    try {
+        let completed = 0;
+        const files = await Promise.all(data.media.map(async (item, mediaIndex) => {
+            const extension = item.isVideo ? 'mp4' : 'jpeg';
+            const fileName = getDownloadFileName(filenameTemplate, {
+                username: data.user.username,
+                hash: data.hash || '',
+                id: item.id,
+                date,
+                time,
+                index: mediaIndex + 1,
+                extension,
+                isCarousel: mediaCount > 1
+            });
+            const response = await fetch(item.url);
+            const blob = await response.blob();
+            completed++;
+            ZIP_DOWNLOAD_BUTTON.textContent = `${completed}/${mediaCount + 2}`;
+            return {
+                title: fileName,
+                data: blob
+            };
+        }));
+        const descriptionFileName = getDownloadFileName(filenameTemplate, {
+            username: data.user.username,
+            hash: data.hash || '',
+            id: 'description',
+            date,
+            time,
+            index: '',
+            extension: 'txt',
+            isCarousel: false
+        });
+        files.push({
+            title: descriptionFileName,
+            data: new Blob([data.caption || ''], { type: 'text/plain;charset=utf-8' })
+        });
+        completed++;
+        ZIP_DOWNLOAD_BUTTON.textContent = `${completed}/${mediaCount + 2}`;
+        const metadataFileName = getDownloadFileName(filenameTemplate, {
+            username: data.user.username,
+            hash: data.hash || '',
+            id: 'metadata',
+            date,
+            time,
+            index: '',
+            extension: 'json',
+            isCarousel: false
+        });
+        files.push({
+            title: metadataFileName,
+            data: new Blob([JSON.stringify(data.postInfo || {}, null, 2)], { type: 'application/json;charset=utf-8' })
+        });
+        completed++;
+        ZIP_DOWNLOAD_BUTTON.textContent = `${completed}/${mediaCount + 2}`;
+        const blob = await createZip(files);
+        saveFile(blob, `${sanitizeFilename(zipBaseName, 'download')}.zip`);
+    } catch (error) {
+        console.log(error);
+    } finally {
+        resetZipShortcutState();
+    }
+}
+
+function handleZipShortcutDownload() {
+    saveFullPostZip();
 }
 
 function shouldDownload() {
