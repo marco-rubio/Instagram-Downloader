@@ -32,6 +32,7 @@ function getFetchOptions() {
 }
 
 const postDescriptionDownloadText = new WeakMap();
+const postMetadataDownloadText = new WeakMap();
 const mediaDownloadMeta = new WeakMap();
 const DEFAULT_FILENAME_TEMPLATE = '{username}_{id}_{date}.{extension}';
 const FILENAME_TEMPLATE_STORAGE_KEY = 'filenameTemplate';
@@ -155,6 +156,17 @@ async function saveZip() {
         let count = 0;
         const results = await Promise.allSettled(selectedMedia.map(async (media) => {
             const meta = mediaDownloadMeta.get(media) || {};
+            if (media.classList.contains('post-metadata-item')) {
+                const text = postMetadataDownloadText.get(media) ?? '{}';
+                const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
+                const data = {
+                    title: meta.fileName || media.dataset.downloadName || 'metadata.json',
+                    data: blob
+                };
+                count++;
+                DOWNLOAD_BUTTON.textContent = `${count}/${selectedMedia.length}`;
+                return data;
+            }
             if (media.classList.contains('post-description-item')) {
                 const text = postDescriptionDownloadText.get(media) ?? '';
                 const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
@@ -369,6 +381,42 @@ async function renderMedia(data) {
                 saveFile(
                     new Blob([postDescriptionDownloadText.get(descriptionEl) ?? ''], { type: 'text/plain;charset=utf-8' }),
                     descriptionFileName
+                );
+            }
+        });
+        fragment.appendChild(itemDOM);
+    }
+    if (data.postInfo) {
+        const metadataFileName = getDownloadFileName(filenameTemplate, {
+            username: data.user.username,
+            hash: data.hash || '',
+            id: 'metadata',
+            date,
+            time,
+            index: '',
+            extension: 'json',
+            isCarousel: false
+        });
+        const metadataText = JSON.stringify(data.postInfo, null, 2) || '{}';
+        const METADATA_TEMPLATE =
+            `<div>
+				<div class="media-item post-description-item post-metadata-item">Post metadata (.json)</div>
+				<div class="overlay">✔</div>
+			</div>`;
+        const itemDOM = new DOMParser().parseFromString(METADATA_TEMPLATE, 'text/html').body.firstElementChild;
+        const metadataEl = itemDOM.querySelector('.post-metadata-item');
+        const selectBox = itemDOM.querySelector('.overlay');
+        metadataEl.dataset.downloadName = metadataFileName;
+        postMetadataDownloadText.set(metadataEl, metadataText);
+        mediaDownloadMeta.set(metadataEl, { fileName: metadataFileName, zipBaseName });
+        metadataEl.addEventListener('click', () => {
+            if (TITLE_CONTAINER.classList.contains('multi-select')) {
+                selectBox.classList.toggle('checked');
+            }
+            else {
+                saveFile(
+                    new Blob([postMetadataDownloadText.get(metadataEl) ?? '{}'], { type: 'application/json;charset=utf-8' }),
+                    metadataFileName
                 );
             }
         });

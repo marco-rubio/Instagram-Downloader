@@ -77,7 +77,8 @@ async function downloadPostPhotos() {
             username: json.user['username'],
         },
         media: [],
-        caption
+        caption,
+        postInfo: json
     };
     function extractMediaData(item) {
         const isVideo = item['media_type'] !== 1;
