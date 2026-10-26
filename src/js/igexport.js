@@ -166,11 +166,12 @@
         files.push({ title: getUniqueArchiveEntryName(`${baseName}.json`, usedNames), data: jsonBlob(rawObject) });
 
         const profilePicture = await fetchProfilePicture(profileUser);
-        if (profilePicture) {
-            files.push({
-                title: getUniqueArchiveEntryName(`${baseName}.profile.${profilePicture.format}`, usedNames),
-                data: profilePicture.blob,
-            });
+        // The importer finds the picture by its .profile.<ext> suffix before matching slide ids (a single-media
+        // post's picture also carries the post pk), so it is never renamed on a collision: skipped instead.
+        const profileName = profilePicture && `${baseName}.profile.${profilePicture.format}`;
+        if (profileName && !usedNames.has(profileName.toLowerCase())) {
+            usedNames.add(profileName.toLowerCase());
+            files.push({ title: profileName, data: profilePicture.blob });
         }
         onProgress(95);
 

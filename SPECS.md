@@ -93,11 +93,12 @@ The importer finds entries by extension and by item id, not by name:
 | Post object     | The only `.json` entry. Never add a second `.json`.                                          |
 | Caption         | The only `.txt` entry. Ignored by the importer.                                              |
 | Media           | One entry per slide. Each name **must contain its own item id** (see Naming).                |
-| Profile picture | The one entry left over after every slide id is matched to a media entry.                    |
+| Profile picture | Optional. If present, the only entry whose name without its last extension ends with `.profile`. |
 
 - "Carries its item id" means `String(pk)` is contained anywhere in the entry name: not a prefix, suffix or `_`-segment match. The export validates and the importer matches with this same predicate. Tightening it on either side is agreed with the other first.
 - The importer pairs the slide ids from the post object 1:1 with media entries. Two entries with one id, or a slide id no entry carries, refuses the ZIP with the file named.
-- The profile picture's `.profile.<ext>` suffix is only a cross-check for the importer, not the rule.
+- The `.profile.<ext>` suffix is **required** for the profile picture. The importer excludes the entry whose stem ends with `.profile` before matching slide ids: for a single-media post both the media and the picture are named after the post pk, so without the suffix the slide would match two entries and the ZIP is refused. Matched on the end of the stem, not anywhere: `my.profile.page_<itemId>.jpg` is media.
+- The picture is never renamed (no `_2` on a name collision): if its name is taken it is left out. It is full size or absent, never a thumbnail.
 - Entries without an extension are reserved for the export (`igexport*`). The importer ignores every extensionless entry except reading `igexport`, so new ones can be added without a format bump.
 - Extensionless names must contain **no dot anywhere**: the importer splits the extension at the last `.`, so a dot would turn the entry into media and refuse the ZIP.
 - Any other entry with an extension would be a second leftover and refuse the ZIP. New kinds are agreed with the importer first.
