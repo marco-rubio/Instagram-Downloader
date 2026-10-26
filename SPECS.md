@@ -186,6 +186,8 @@ username_<userPk>.zip
 - Full-size picture only (`hd_profile_pic_url_info.url`). If the page data has none, the export fails with the reason: never a thumbnail, never a rate-limited fallback request.
 - `.json`: raw and unmodified, and self-contained. If the user record is a store record that references other records (`__ref`-style) instead of embedding them, the referenced records are shipped too: one JSON object mapping record ids to their raw records, each unchanged. `source` then says it is a store slice, not an API response.
 - Required keys: `pk` and `username` (an authoritative account / username observation at `exported_at`). `full_name` and `is_verified` may be used later. Nothing else is promised; counts are volatile and not used.
+- Record choice is deterministic: the first record in the profile header's data whose `username` matches and that has a full-size picture. Never "the richest" record: its shape would follow Instagram's frontend, not the account. If more keys are ever needed, pick the record that has those named keys.
+- First sample (flat, no store refs): `pk`, `username`, `hd_profile_pic_url_info`, `profile_pic_url`, `is_unpublished`, `live_broadcast_id`, `live_broadcast_visibility`. The last three change on their own (a broadcast id changes every time the account goes live): ignore them when comparing two profile records.
 - Names from upstream's Posts tokens with the account pk as `#id`: `username_<userPk>`. Tokens without a value (`#date`, `#title`) are dropped.
 - No `.txt`, no media entries.
 - The importer refuses `profile` ("this build imports posts only") until it stores account avatars, backlogged there.
@@ -211,4 +213,3 @@ username [shortcode].zip
 - [ ] Story with a reshared post (`story_feed_media` / `reshared_story_media_author` set): send a sample to the importer when one appears.
 - [ ] How stories fit the archive: own tables on the importer side, backlogged. First story sample: the item has its own `code`, equal to the encoded `pk` as for posts; `taken_at` and `expiring_at` (+24 h) in seconds; `video_duration` present (unlike posts); `product_type` `story`; stub `user` (pk only); no reshared post (`story_feed_media` null); link and music stickers present.
 - [ ] Highlights export: later. Upstream's highlight buttons do not show consistently yet.
-- [ ] Profile export record: the first sample was flat (no store refs) but thin, 7 keys (`pk`, `username`, both picture URLs, `is_unpublished`, live broadcast fields), no `full_name` / `is_verified`. The reader takes the first matching record; a richer one may exist elsewhere in the page data.
