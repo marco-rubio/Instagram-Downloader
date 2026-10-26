@@ -213,8 +213,12 @@
         const exportedAt = new Date();
         const item = reel.items.find((candidate) => getMediaId(candidate.pk ?? candidate.id) === story.storyId);
         if (!item) throw new Error(`story ${story.storyId} is not in the current stories`);
-        // One source per fact: the reel's user only when the item does not carry its own.
-        const extraEntries = item.user ? [] : [{ title: USER_ENTRY, data: jsonBlob(reel.user ?? {}) }];
+        // Story items carry a stub user (pk, no username, no picture): the reel's user is added
+        // only when the item lacks the username the importer needs, one source per fact otherwise.
+        const extraEntries = item.user?.username ? [] : [{ title: USER_ENTRY, data: jsonBlob(reel.user ?? {}) }];
+        const profileUser = [item.user, reel.user].find(
+            (user) => user?.hd_profile_pic_url_info?.url || user?.profile_pic_url,
+        );
         return createExportZip(
             {
                 kind: EXPORT_KINDS.STORY,
@@ -223,7 +227,7 @@
                 data: getStoryExportData(item, reel.user),
                 rawObject: item,
                 caption: item.caption?.text?.trim() ?? '',
-                profileUser: item.user ?? reel.user,
+                profileUser,
                 extraEntries,
             },
             onProgress,

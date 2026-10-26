@@ -154,7 +154,7 @@ username_<storyId>.zip
 |-- igexport                        "2"
 |-- igexport-kind                   "story"
 |-- igexport-provenance             source "PolarisStoriesV3ReelPageGalleryQuery"
-|-- igexport-user                   only if the story item has no `user`
+|-- igexport-user                   only if the story item's `user` has no `username`
 |-- username_<storyId>.<ext>        the story item's media
 |-- username_<storyId>.txt          caption text, usually empty
 |-- username_<storyId>.json         the raw story item
@@ -163,8 +163,8 @@ username_<storyId>.zip
 
 - Names come from upstream's **Stories** filename template (separate from Posts). `#id` is the story item's `pk` for the media, and also for the archive and sidecars: the export passes the story item, not the reel, as what is being named. Upstream's own story ZIP uses the reel id (the user's pk) there, which would give every story of one account the same name.
 - `.json`: the raw story item (one element of the reel's `items[]`), unmodified. Never trimmed or wrapped.
-- `igexport-user`: the reel's `user` object, unmodified, JSON. Only when the story item has no `user` of its own (one source per fact). The importer needs its `pk` (or `pk_id`) and `username`.
-- Profile picture from the item's `user`, else the reel's `user`.
+- `igexport-user`: the reel's `user` object, unmodified, JSON. Only when the story item's `user` has no `username` (one source per fact). Story items carry a stub `user` with `pk` but no `username` and no picture, so in practice it is always added. The importer needs its `pk` (or `pk_id`) and `username`.
+- Profile picture from the first of the item's `user` and the reel's `user` that has a picture URL.
 
 ## Format version 1 (v5, branch `my-branch-v5`)
 
@@ -184,6 +184,6 @@ username [shortcode].zip
 
 ## Open questions
 
-- [ ] Story item fields, to report with the first story sample: whether the item has `user`, its own `code`, `taken_at`, `expiring_at`, reshared post references, stickers, mentions, music.
+- [ ] How stories fit the archive (importer side, Marco's decision). First story sample: the item has its own `code`, equal to the encoded `pk` as for posts; `taken_at` and `expiring_at` (+24 h) in seconds; `video_duration` present (unlike posts); `product_type` `story`; stub `user` (pk only); no reshared post (`story_feed_media` null); link and music stickers present.
 - [ ] Highlights export: later. Upstream's highlight buttons do not show consistently yet.
 - [ ] Standalone profile picture button (v5: profile pages only, read from page data, named `username [userId_YYYYMMDDHHmmssZ].jpeg`): keep or drop.
