@@ -119,6 +119,7 @@ Names come from upstream's filename settings for the post scope (settings dialog
 | Profile picture | From `user.hd_profile_pic_url_info.url`, falling back to `user.profile_pic_url`.                      |
 
 - Media extension follows the content type (`.jpg`, `.webp`, `.mp4`, ...), as upstream names it.
+- Photo resolution depends on upstream's `setPreferredMediaResolutionCookies()` (`wd` / `dpr` cookies), which `getPostPhotos()` sets before the query. Deliberate, keep it: without it Instagram serves a downscaled candidate. Measured on the same slide: v1 delivered 1080x1080 (181 KB) while the post object stated `original_width` / `original_height` 2048, v2 delivers the full 2048x2048 (741 KB). Videos are byte-identical.
 - If any slide cannot be downloaded, the export fails instead of saving an incomplete ZIP: the importer checks the media count against the slides.
 - The profile picture comes from the CDN URL already in the post object, so it costs no extra API call. If its download fails, the ZIP is still saved without it.
 
@@ -130,6 +131,8 @@ The importer reads these keys literally, with REST spellings:
 - Wanted, silently lost if renamed: `taken_at` (unix seconds), `media_type`, `product_type`, `code`, `caption.text`, `location.name` / `lat` / `lng`, `usertags.in[].user.pk`, `coauthor_producers[].pk` / `username`, and per slide `original_width`, `original_height`, `video_duration`.
 
 GraphQL-style renames (`edge_sidecar_to_children`, `dimensions`, `owner.id`, `shortcode`, `taken_at_timestamp`) would import as empty values without an error.
+
+Verified on two real exports (single video, and a photo + video carousel compared with its v1 REST export): `PolarisPostRootQuery` returns the same v1 post object with REST spellings and a smaller field selection (81 top-level keys vs 115-135). Present: every required field, `taken_at` in seconds, `original_width` / `original_height` on the post object and on each `carousel_media` entry. Missing: `video_duration` everywhere, plus `play_count` / `ig_play_count` and other non-contract fields. The importer derives the duration from `video_dash_manifest` (`mediaPresentationDuration`, matches `video_duration` within 2 ms on 407 of 416 v1 videos). The export keeps the post object unmodified and never fills fields in.
 
 ## Format version 1 (v5, branch `my-branch-v5`)
 
@@ -149,6 +152,5 @@ username [shortcode].zip
 
 ## Open questions
 
-- [ ] Post object shape from GraphQL `PolarisPostRootQuery` vs the REST keys above. Upstream reads REST-style keys from it (`carousel_media`, `taken_at`, `pk`, `user.username`, `caption.text`) and the response key is `xdt_api__v1__media__shortcode__web_info`, which suggests the same v1 object. To be confirmed with a real export sent to the importer.
 - [ ] Stories and highlights export: needed, and with which entries.
 - [ ] Standalone profile picture button (v5: profile pages only, read from page data, named `username [userId_YYYYMMDDHHmmssZ].jpeg`): keep or drop.
