@@ -16,6 +16,7 @@ The consumer of the export is the importer in `marco-rubio/instagram-archive`. C
 ## Export button
 
 - Inline button with its own icon (archive box), placed right after upstream's inline post download button on every post: feed, post page, reels, single media and carousels.
+- Stories: placed right after upstream's story download button. Exports only the story item on screen. Not shown on highlights yet.
 - It attaches to upstream's button instead of finding the action bar itself, so upstream's files stay unchanged. It is shown wherever upstream shows its inline post buttons (download button style "Modern" or "Both").
 - Shows upstream's progress ring while exporting. On failure it shows a red ring for 3 seconds, with the reason in its tooltip.
 - Code: `src/js/igexport.js`, `src/style/igexport.css`. The only upstream file touched is `manifest.json`.
@@ -29,6 +30,7 @@ With upstream's default post tokens (`#username`, `#id`, `#date`):
 ```
 username_<postId>_<date>.zip
 |-- igexport                                 format marker, contains "2"
+|-- igexport-kind                            "post"
 |-- igexport-provenance                      export time and build, JSON
 |-- username_<itemId>_<date>.<ext>           media, one per slide
 |-- username_<postId>_<date>.txt             caption
@@ -45,6 +47,13 @@ Archive comment: `igexport v2`.
 - This format is version `2`. Absent or empty means version 1, the v5 format below.
 - The importer refuses versions it does not know. Any incompatible change to this contract bumps the version, never reuse a number.
 - The archive comment `igexport v2` is for humans (`unzip -z`). The marker entry is the contract.
+
+### Kind
+
+- Entry `igexport-kind`, no extension. Contents: one bare ASCII word, nothing else (no newline): `post` or `story`.
+- Absent means `post` (the first v2 exports did not have it). Unknown word: the importer refuses.
+- Separate from the version: `igexport` says how to read the container, `igexport-kind` says what is inside. A new kind does not bump the version.
+- The importer currently refuses `story` with "this build imports posts only": a story has no shortcode, and how stories fit the archive is still to be decided there. The export ships stories anyway, the kind entry keeps them from being read as posts.
 
 ### Provenance
 
@@ -78,6 +87,8 @@ The importer finds entries by extension and by item id, not by name:
 | Entry           | Rule                                                                                         |
 | --------------- | -------------------------------------------------------------------------------------------- |
 | Marker          | `igexport`, without extension. Fixed in code, never configurable.                            |
+| Kind            | `igexport-kind`, without extension. Fixed in code.                                           |
+| User            | `igexport-user`, without extension, stories only, see Story export ZIP.                      |
 | Provenance      | `igexport-provenance`, without extension. Fixed in code.                                     |
 | Post object     | The only `.json` entry. Never add a second `.json`.                                          |
 | Caption         | The only `.txt` entry. Ignored by the importer.                                              |
@@ -134,6 +145,27 @@ GraphQL-style renames (`edge_sidecar_to_children`, `dimensions`, `owner.id`, `sh
 
 Verified on two real exports (single video, and a photo + video carousel compared with its v1 REST export): `PolarisPostRootQuery` returns the same v1 post object with REST spellings and a smaller field selection (81 top-level keys vs 115-135). Present: every required field, `taken_at` in seconds, `original_width` / `original_height` on the post object and on each `carousel_media` entry. Missing: `video_duration` everywhere, plus `play_count` / `ig_play_count` and other non-contract fields. The importer derives the duration from `video_dash_manifest` (`mediaPresentationDuration`, matches `video_duration` within 2 ms on 407 of 416 v1 videos). The export keeps the post object unmodified and never fills fields in.
 
+## Story export ZIP
+
+Same format version 2 and the same rules as the post export, with `igexport-kind` `story`. One ZIP per story item: the one on screen, identified by the story id in the URL (`/stories/<username>/<storyId>/`). If the URL has no story id, the export fails instead of guessing.
+
+```
+username_<storyId>.zip
+|-- igexport                        "2"
+|-- igexport-kind                   "story"
+|-- igexport-provenance             source "PolarisStoriesV3ReelPageGalleryQuery"
+|-- igexport-user                   only if the story item has no `user`
+|-- username_<storyId>.<ext>        the story item's media
+|-- username_<storyId>.txt          caption text, usually empty
+|-- username_<storyId>.json         the raw story item
+`-- username_<storyId>.profile.<ext>
+```
+
+- Names come from upstream's **Stories** filename template (separate from Posts). `#id` is the story item's `pk` for the media, and also for the archive and sidecars: the export passes the story item, not the reel, as what is being named. Upstream's own story ZIP uses the reel id (the user's pk) there, which would give every story of one account the same name.
+- `.json`: the raw story item (one element of the reel's `items[]`), unmodified. Never trimmed or wrapped.
+- `igexport-user`: the reel's `user` object, unmodified, JSON. Only when the story item has no `user` of its own (one source per fact). The importer needs its `pk` (or `pk_id`) and `username`.
+- Profile picture from the item's `user`, else the reel's `user`.
+
 ## Format version 1 (v5, branch `my-branch-v5`)
 
 Still accepted by the importer, identified by the missing marker.
@@ -152,5 +184,6 @@ username [shortcode].zip
 
 ## Open questions
 
-- [ ] Stories and highlights export: needed, and with which entries.
+- [ ] Story item fields, to report with the first story sample: whether the item has `user`, its own `code`, `taken_at`, `expiring_at`, reshared post references, stickers, mentions, music.
+- [ ] Highlights export: later. Upstream's highlight buttons do not show consistently yet.
 - [ ] Standalone profile picture button (v5: profile pages only, read from page data, named `username [userId_YYYYMMDDHHmmssZ].jpeg`): keep or drop.
