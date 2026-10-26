@@ -105,11 +105,28 @@
         };
     }
 
+    /**
+     * Full-size picture only, never profile_pic_url: it is a 150x150 thumbnail.
+     * Post objects carry hd_profile_pic_url_info, story reel users do not: then one user info request.
+     */
+    async function getFullSizeProfilePictureUrl(user) {
+        if (user?.hd_profile_pic_url_info?.url) return user.hd_profile_pic_url_info.url;
+        const userId = user?.pk ?? user?.pk_id ?? user?.id;
+        if (!userId) return '';
+        const response = await fetch(new URL(`/api/v1/users/${userId}/info/`, IG_BASE_URL).href, getFetchOptions());
+        // A rate limit or a redirect to the login/home page is not JSON: skip the picture.
+        if (!response.ok || !response.headers.get('content-type')?.includes('json')) {
+            throw new Error(`user info request failed (${response.status})`);
+        }
+        const json = await response.json();
+        return json.user?.hd_profile_pic_url_info?.url || '';
+    }
+
     // Optional entry: the importer accepts a ZIP without it, so a failed download only skips it.
     async function fetchProfilePicture(user) {
-        const url = user?.hd_profile_pic_url_info?.url || user?.profile_pic_url;
-        if (!url) return null;
         try {
+            const url = await getFullSizeProfilePictureUrl(user);
+            if (!url) return null;
             const blob = await fetchProgressiveMediaBlob(url);
             const format = resolveMediaFormatFromContentType(blob.type) || resolveMediaFormat(url) || 'jpg';
             return { blob, format };
@@ -201,24 +218,85 @@
         return { username, storyId: /^\d+$/.test(storyId ?? '') ? storyId : '' };
     }
 
+    // Same criteria as upstream's story button: the largest visible image or video is the story on screen.
+    function readVisibleStoryMedia() {
+        const media = [...document.querySelectorAll('img, video')]
+            .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+            .filter(
+                ({ rect }) =>
+                    rect.width >= 240 &&
+                    rect.height >= 300 &&
+                    rect.bottom > 0 &&
+                    rect.right > 0 &&
+                    rect.top < window.innerHeight &&
+                    rect.left < window.innerWidth,
+            )
+            .sort((first, second) => second.rect.width * second.rect.height - first.rect.width * first.rect.height)[0]
+            ?.element;
+        return {
+            sourceUrl: media?.currentSrc || media?.src || '',
+            posterUrl: media instanceof HTMLVideoElement ? media.poster || '' : '',
+        };
+    }
+
+    // Instagram can update the visible media across render frames: wait until two consecutive reads agree.
+    async function readStableVisibleStoryMedia() {
+        let previous = readVisibleStoryMedia();
+        for (let attempt = 0; attempt < 5; attempt++) {
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const current = readVisibleStoryMedia();
+            if (current.sourceUrl === previous.sourceUrl && current.posterUrl === previous.posterUrl) return current;
+            previous = current;
+        }
+        return null;
+    }
+
+    /**
+     * The first story of a reel has no id in the URL (/stories/<username>/).
+     * Match the media on screen against the items with upstream's findMediaByRenderedUrl()
+     * (cache key id, then URL path). No index or position fallback: no match fails the export.
+     */
+    function findItemByVisibleMedia(items, visible) {
+        const media = items
+            .map((item) => {
+                const mediaData = extractMediaData(item);
+                return mediaData && { ...mediaData, item };
+            })
+            .filter(Boolean);
+        const data = { media };
+        return (findMediaByRenderedUrl(data, visible.sourceUrl) ?? findMediaByRenderedUrl(data, visible.posterUrl))
+            ?.item;
+    }
+
     async function createStoryExport(onProgress) {
         const story = getCurrentStoryFromPath();
         if (!story) throw new Error('not on a story page');
-        // The URL is the only safe way to know which story is on screen, never guess from the reel.
-        if (!story.storyId) throw new Error('the story id is missing from the URL, cannot identify the story');
+        // Read what is on screen before any request: the story keeps playing and can advance meanwhile.
+        const visible = story.storyId ? null : await readStableVisibleStoryMedia();
+        if (!story.storyId && !visible?.sourceUrl && !visible?.posterUrl) {
+            throw new Error('cannot identify the story on screen');
+        }
         const userId = await getUserIdFromSearch(story.username);
         if (!userId) throw new Error(`user ${story.username} not found`);
         const reel = await getStoryPhotos(userId);
         if (!reel?.items?.length) throw new Error('no stories found');
         const exportedAt = new Date();
-        const item = reel.items.find((candidate) => getMediaId(candidate.pk ?? candidate.id) === story.storyId);
-        if (!item) throw new Error(`story ${story.storyId} is not in the current stories`);
+        const item = story.storyId
+            ? reel.items.find((candidate) => getMediaId(candidate.pk ?? candidate.id) === story.storyId)
+            : findItemByVisibleMedia(reel.items, visible);
+        if (!item) {
+            throw new Error(
+                story.storyId
+                    ? `story ${story.storyId} is not in the current stories`
+                    : 'cannot match the story on screen to the current stories',
+            );
+        }
         // Story items carry a stub user (pk, no username, no picture): the reel's user is added
         // only when the item lacks the username the importer needs, one source per fact otherwise.
         const extraEntries = item.user?.username ? [] : [{ title: USER_ENTRY, data: jsonBlob(reel.user ?? {}) }];
-        const profileUser = [item.user, reel.user].find(
-            (user) => user?.hd_profile_pic_url_info?.url || user?.profile_pic_url,
-        );
+        // Prefer a user with a full-size picture; otherwise the reel's user, looked up by its pk.
+        const profileUser =
+            [item.user, reel.user].find((user) => user?.hd_profile_pic_url_info?.url) ?? reel.user ?? item.user;
         return createExportZip(
             {
                 kind: EXPORT_KINDS.STORY,

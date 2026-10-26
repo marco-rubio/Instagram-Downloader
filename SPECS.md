@@ -127,12 +127,12 @@ Names come from upstream's filename settings for the post scope (settings dialog
 | Media           | Highest quality available, one file per slide. A slide is never silently skipped.                     |
 | Caption         | Raw caption text, trimmed. Always present, empty when the post has no caption.                        |
 | Post object     | Raw post object as returned by Instagram, unmodified, pretty-printed with 2-space indentation.        |
-| Profile picture | From `user.hd_profile_pic_url_info.url`, falling back to `user.profile_pic_url`.                      |
+| Profile picture | Full size only, from `user.hd_profile_pic_url_info.url`. Never `profile_pic_url` (150x150 thumbnail). |
 
 - Media extension follows the content type (`.jpg`, `.webp`, `.mp4`, ...), as upstream names it.
 - Photo resolution depends on upstream's `setPreferredMediaResolutionCookies()` (`wd` / `dpr` cookies), which `getPostPhotos()` sets before the query. Deliberate, keep it: without it Instagram serves a downscaled candidate. Measured on the same slide: v1 delivered 1080x1080 (181 KB) while the post object stated `original_width` / `original_height` 2048, v2 delivers the full 2048x2048 (741 KB). Videos are byte-identical.
 - If any slide cannot be downloaded, the export fails instead of saving an incomplete ZIP: the importer checks the media count against the slides.
-- The profile picture comes from the CDN URL already in the post object, so it costs no extra API call. If its download fails, the ZIP is still saved without it.
+- The profile picture comes from the CDN URL already in the post object, so it costs no extra API call. If its download fails, the ZIP is still saved without it. A thumbnail is never saved in its place.
 
 ### Post object fields the importer reads
 
@@ -147,7 +147,7 @@ Verified on two real exports (single video, and a photo + video carousel compare
 
 ## Story export ZIP
 
-Same format version 2 and the same rules as the post export, with `igexport-kind` `story`. One ZIP per story item: the one on screen, identified by the story id in the URL (`/stories/<username>/<storyId>/`). If the URL has no story id, the export fails instead of guessing.
+Same format version 2 and the same rules as the post export, with `igexport-kind` `story`. One ZIP per story item: the one on screen. It is identified by the story id in the URL (`/stories/<username>/<storyId>/`). The first story of a reel has no id in the URL (`/stories/<username>/`): then the media on screen is matched against the story items with upstream's `findMediaByRenderedUrl()` (id in the media URL's cache key, then URL path), read before any request since the story keeps playing. No position or index fallback: if neither identifies the story, the export fails instead of guessing.
 
 ```
 username_<storyId>.zip
@@ -165,7 +165,7 @@ username_<storyId>.zip
 - `.json`: the raw story item (one element of the reel's `items[]`), unmodified. Never trimmed or wrapped.
 - `igexport-user`: the reel's `user` object, unmodified, JSON. Only when the story item's `user` has no `username` (one source per fact). Story items carry a stub `user` with `pk` but no `username` and no picture, so in practice it is always added. The importer needs its `pk` (or `pk_id`) and `username`.
 - When `igexport-user` is present the importer reads the account from it as a whole. If the item's `user.pk` is also present and disagrees with it, the importer refuses: identity assembled from two contradicting entries is never guessed. Both are the author's account pk, so this should not happen.
-- Profile picture from the first of the item's `user` and the reel's `user` that has a picture URL.
+- Profile picture: the story item's and the reel's `user` only carry the 150x150 thumbnail, so the full-size URL comes from one user info request (`/api/v1/users/<pk>/info/`). That endpoint is heavily rate limited: on a 429 or any other failure the ZIP is saved without a profile picture. See open questions.
 
 ## Format version 1 (v5, branch `my-branch-v5`)
 
@@ -187,5 +187,6 @@ username [shortcode].zip
 
 - [ ] Story with a reshared post (`story_feed_media` / `reshared_story_media_author` set): send a sample to the importer when one appears.
 - [ ] How stories fit the archive: own tables on the importer side, backlogged. First story sample: the item has its own `code`, equal to the encoded `pk` as for posts; `taken_at` and `expiring_at` (+24 h) in seconds; `video_duration` present (unlike posts); `product_type` `story`; stub `user` (pk only); no reshared post (`story_feed_media` null); link and music stickers present.
+- [ ] Story profile picture source: the user info request is often rate limited, so stories often have no profile picture. Options: cache per account (and reuse URLs from post exports), or a GraphQL profile query.
 - [ ] Highlights export: later. Upstream's highlight buttons do not show consistently yet.
 - [ ] Standalone profile picture button (v5: profile pages only, read from page data, named `username [userId_YYYYMMDDHHmmssZ].jpeg`): keep or drop.
