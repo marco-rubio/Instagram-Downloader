@@ -22,6 +22,7 @@ With upstream's default post tokens (`#username`, `#id`, `#date`):
 ```
 username_<postId>_<date>.zip
 |-- igexport                                 format marker, contains "2"
+|-- igexport-provenance                      export time and build, JSON
 |-- username_<itemId>_<date>.<ext>           media, one per slide
 |-- username_<postId>_<date>.txt             caption
 |-- username_<postId>_<date>.json            post object
@@ -38,13 +39,39 @@ Archive comment: `igexport v2`.
 - The importer refuses versions it does not know. Any incompatible change to this contract bumps the version, never reuse a number.
 - The archive comment `igexport v2` is for humans (`unzip -z`). The marker entry is the contract.
 
+### Provenance
+
+Entry `igexport-provenance`, JSON, pretty-printed with 2-space indentation:
+
+```json
+{
+  "exported_at": "2026-10-25T14:03:09.123Z",
+  "extension_version": "6.0.5",
+  "upstream_version": "6.0.5",
+  "source": "PolarisPostRootQuery"
+}
+```
+
+| Field               | Content                                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------- |
+| `exported_at`       | Export time, RFC 3339 in UTC with explicit offset (`Z`), from `Date.toISOString()`.      |
+| `extension_version` | This fork's build. Diagnostics only.                                                     |
+| `upstream_version`  | Upstream version this build is based on. Diagnostics only.                               |
+| `source`            | Where the post object came from: `PolarisPostRootQuery`. Diagnostics only.               |
+
+- `exported_at` is the only field the importer consumes: it orders captures of the same post (newest caption and counters win). Without it the importer falls back to the ZIP's file modification time, which copying or syncing can change.
+- `exported_at` must always carry an explicit offset. Never a naive local time.
+- Nothing the post object already states (shortcode, ids, username, media order or types): a second copy could disagree with it.
+- If the entry is missing or unparseable the ZIP still imports, using the file modification time.
+
 ### Entry rules
 
 The importer finds entries by extension and by item id, not by name:
 
 | Entry           | Rule                                                                                         |
 | --------------- | -------------------------------------------------------------------------------------------- |
-| Marker          | `igexport`, the only entry without an extension. Fixed in code, never configurable.          |
+| Marker          | `igexport`, without extension. Fixed in code, never configurable.                            |
+| Provenance      | `igexport-provenance`, without extension. Fixed in code.                                     |
 | Post object     | The only `.json` entry. Never add a second `.json`.                                          |
 | Caption         | The only `.txt` entry. Ignored by the importer.                                              |
 | Media           | One entry per slide. Each name **must contain its own item id** (see Naming).                |
@@ -52,7 +79,9 @@ The importer finds entries by extension and by item id, not by name:
 
 - The importer pairs the slide ids from the post object 1:1 with media entries. Two entries with one id, or a slide id no entry carries, refuses the ZIP with the file named.
 - The profile picture's `.profile.<ext>` suffix is only a cross-check for the importer, not the rule.
-- Any other entry would be a second leftover and refuse the ZIP. New entry kinds are agreed with the importer first.
+- Entries without an extension are reserved for the export (`igexport*`). The importer ignores every extensionless entry except reading `igexport`, so new ones can be added without a format bump.
+- Extensionless names must contain **no dot anywhere**: the importer splits the extension at the last `.`, so a dot would turn the entry into media and refuse the ZIP.
+- Any other entry with an extension would be a second leftover and refuse the ZIP. New kinds are agreed with the importer first.
 
 ### Naming
 
@@ -112,6 +141,7 @@ username [shortcode].zip
 ## Open questions
 
 - [ ] Post object shape from GraphQL `PolarisPostRootQuery` vs the REST keys above. Upstream reads REST-style keys from it (`carousel_media`, `taken_at`, `pk`, `user.username`, `caption.text`) and the response key is `xdt_api__v1__media__shortcode__web_info`, which suggests the same v1 object. To be confirmed with a real export sent to the importer.
+- [ ] `extension_version` value: upstream's manifest `version` is the upstream version, so this fork's build needs its own identifier (e.g. manifest `version_name`).
 - [ ] Where the export button goes: separate inline button, upstream's ZIP button, or a floating button.
 - [ ] Stories and highlights export: needed, and with which entries.
 - [ ] Standalone profile picture button (v5: profile pages only, read from page data, named `username [userId_YYYYMMDDHHmmssZ].jpeg`): keep or drop.
