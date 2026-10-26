@@ -122,6 +122,7 @@ Names come from upstream's filename settings for the post scope (settings dialog
 - Upstream cuts names at 180 characters, so a long `#title` before `#id` can cut the id off. The export checks every media name contains its item id, before downloading and again on the final name, and otherwise fails with the cause in the button's tooltip instead of saving a ZIP the importer refuses. It never shortens names itself.
 - Slide order is not in the names. It is the order of `carousel_media` in the post object.
 - Token order and other tokens do not matter to the importer. It never reads the ZIP's own name.
+- ZIP names do not say the kind and may clash across kinds: a profile ZIP (`#id` = account pk) has the same name as upstream's own story-group ZIP, and a highlight item keeps its story item pk. This is accepted on purpose: the kind is only in `igexport-kind`, never in a name, and the browser's duplicate suffixes (` (1)`, ` (2)`, Finder's ` copy`) keep the files apart. The importer identifies every ZIP from its contents alone.
 
 ### Content
 
@@ -210,6 +211,5 @@ username [shortcode].zip
 
 ## Open questions
 
-- [ ] Story with a reshared post (`story_feed_media` / `reshared_story_media_author` set): send a sample to the importer when one appears.
-- [ ] How stories fit the archive: own tables on the importer side, backlogged. First story sample: the item has its own `code`, equal to the encoded `pk` as for posts; `taken_at` and `expiring_at` (+24 h) in seconds; `video_duration` present (unlike posts); `product_type` `story`; stub `user` (pk only); no reshared post (`story_feed_media` null); link and music stickers present.
-- [ ] Highlights export: later. Upstream's highlight buttons do not show consistently yet.
+- [ ] How stories fit the archive: own tables on the importer side, later. First story sample: the item has its own `code`, equal to the encoded `pk` as for posts; `taken_at` and `expiring_at` (+24 h) in seconds; `video_duration` present (unlike posts); `product_type` `story`; stub `user` (pk only); no reshared post (`story_feed_media` null); link and music stickers present.
+- [ ] Highlights export: later. Upstream's highlight buttons do not show consistently yet. Highlight items keep their story item pk, so their ZIPs can share names with story ZIPs (accepted, see Naming).
