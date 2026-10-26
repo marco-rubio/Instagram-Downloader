@@ -84,6 +84,7 @@ The importer finds entries by extension and by item id, not by name:
 | Media           | One entry per slide. Each name **must contain its own item id** (see Naming).                |
 | Profile picture | The one entry left over after every slide id is matched to a media entry.                    |
 
+- "Carries its item id" means `String(pk)` is contained anywhere in the entry name: not a prefix, suffix or `_`-segment match. The export validates and the importer matches with this same predicate. Tightening it on either side is agreed with the other first.
 - The importer pairs the slide ids from the post object 1:1 with media entries. Two entries with one id, or a slide id no entry carries, refuses the ZIP with the file named.
 - The profile picture's `.profile.<ext>` suffix is only a cross-check for the importer, not the rule.
 - Entries without an extension are reserved for the export (`igexport*`). The importer ignores every extensionless entry except reading `igexport`, so new ones can be added without a format bump.
