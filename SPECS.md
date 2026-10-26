@@ -16,7 +16,7 @@ The consumer of the export is the importer in `marco-rubio/instagram-archive`. C
 ## Export button
 
 - Inline button with its own icon (archive box), placed right after upstream's inline post download button on every post: feed, post page, reels, single media and carousels.
-- Stories: placed right after upstream's story download button. Exports only the story item on screen. Not shown on highlights yet.
+- Stories: placed right after upstream's story download button. Exports only the story item on screen. Not shown on highlights.
 - Profiles: over the bottom-right corner of the profile picture in the header (the largest image there). It is placed next to the picture's clickable element, not inside it, because clicking the picture opens the account's stories. Repositioned on page changes and window resizes.
 - It attaches to upstream's button instead of finding the action bar itself, so upstream's files stay unchanged. It is shown wherever upstream shows its inline post buttons (download button style "Modern" or "Both").
 - Upstream's inline download buttons (post and story) are hidden with CSS in `src/style/igexport.css`; they stay in the DOM because the export buttons are placed after them. Upstream's download button style must stay "Modern" or "Both", "Legacy" removes them and the export buttons with them.
@@ -153,6 +153,8 @@ Verified on two real exports (single video, and a photo + video carousel compare
 
 Same format version 2 and the same rules as the post export, with `igexport-kind` `story`. One ZIP per story item: the one on screen. It is identified by the story id in the URL (`/stories/<username>/<storyId>/`). The first story of a reel has no id in the URL (`/stories/<username>/`): then the media on screen is matched against the story items with upstream's `findMediaByRenderedUrl()` (id in the media URL's cache key, then URL path), read before any request since the story keeps playing. No position or index fallback: if neither identifies the story, the export fails instead of guessing.
 
+Known limitation: a first story that is a video playing from a `blob:` URL without a poster carries no id in its URL, so it cannot be identified and its export fails ("cannot match the story on screen"). Open the next story and come back (the URL then has the id), or use the story's direct link. The React components around the player were checked (80 levels): they do not hold the item id under `pk`, `id`, `media_id` or `mediaId`.
+
 ```
 username_<storyId>.zip
 |-- igexport                        "2"
@@ -193,6 +195,15 @@ username_<userPk>.zip
 - No `.txt`, no media entries.
 - The importer refuses `profile` ("this build imports posts only") until it stores account avatars, backlogged there.
 
+## Not supported: highlights
+
+Dropped (seldom used, too many moving parts). Findings from the attempt, for a future one:
+
+- The highlight URL (`/stories/highlights/<highlightId>/`) never names the item on screen, so the item has to be matched from the page.
+- Videos play from `blob:` URLs without poster: no id in the URL, and none found in the player's React props.
+- Upstream's highlight query (`getHighlightStory()`) returned all items of a one-item highlight.
+- Upstream's own highlight buttons show inconsistently and are hidden by `igexport.css` together with its story buttons, so the extension offers no highlight download at all.
+
 ## Format version 1 (v5, branch `my-branch-v5`)
 
 Still accepted by the importer, identified by the missing marker.
@@ -212,4 +223,3 @@ username [shortcode].zip
 ## Open questions
 
 - [ ] How stories fit the archive: own tables on the importer side, later. First story sample: the item has its own `code`, equal to the encoded `pk` as for posts; `taken_at` and `expiring_at` (+24 h) in seconds; `video_duration` present (unlike posts); `product_type` `story`; stub `user` (pk only); no reshared post (`story_feed_media` null); link and music stickers present.
-- [ ] Highlights export: later. Upstream's highlight buttons do not show consistently yet. Highlight items keep their story item pk, so their ZIPs can share names with story ZIPs (accepted, see Naming).
