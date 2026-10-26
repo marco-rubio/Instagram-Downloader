@@ -239,6 +239,47 @@
     cursor: progress;
 }
 
+/* Setup problem notice, see checkUpstreamButtons(). Top center, above Instagram's overlays. */
+.igd-export-notice {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    z-index: 2147483647;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    width: max-content;
+    max-width: min(560px, calc(100vw - 32px));
+    padding: 12px 12px 12px 16px;
+    color: #fff;
+    font-size: 14px;
+    line-height: 1.4;
+    background: rgb(38 38 38);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgb(0 0 0 / 30%);
+    box-sizing: border-box;
+    transform: translateX(-50%);
+}
+
+.igd-export-notice > button {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    margin: -2px 0;
+    padding: 0;
+    color: inherit;
+    font-size: 20px;
+    line-height: 24px;
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.igd-export-notice > button:hover {
+    background-color: rgb(255 255 255 / 12%);
+}
+
 /* Failed export, every export button. Last, so it overrides each button's own color and ring. */
 .igd-inline-export-failed {
     color: rgb(var(--ig-error-or-destructive, 237, 73, 86));

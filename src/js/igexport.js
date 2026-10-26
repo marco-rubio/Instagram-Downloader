@@ -38,6 +38,16 @@
     const STORY_OBJECT_SOURCE = 'PolarisStoriesV3ReelPageGalleryQuery';
     const PROFILE_OBJECT_SOURCE = 'profile-page-data';
     const FAILED_STATE_DURATION = 3000;
+    // Once, after a pause: upstream never retries on a rate limit, a burst of retries risks the account.
+    const RATE_LIMIT_RETRY_DELAY = 5000;
+    // Shift+E. Free on Instagram (Shift+E and E tested on feed, post overlay and stories) and in upstream
+    // (Shift+D, Shift+S, Shift+C).
+    const EXPORT_SHORTCUT_KEY = 'E';
+    const NOTICE_CLASS = 'igd-export-notice';
+    // How long a post or story page may go without upstream's button before it is reported as missing.
+    const UPSTREAM_BUTTON_TIMEOUT = 8000;
+    const shownNotices = new Set();
+    let missingUpstreamTimer = 0;
     let updateQueued = false;
 
     function jsonBlob(value) {
@@ -115,6 +125,22 @@
         };
     }
 
+    // Same test upstream's fetchBestMediaBlob() uses to stop on a rate limit.
+    function isRateLimited(error) {
+        return error?.status === 429 || /\(429\)/.test(error?.message || '');
+    }
+
+    // Media downloads only: upstream's queries return null on any failure, so a rate limit cannot be told apart there.
+    async function retryOnRateLimit(download) {
+        try {
+            return await download();
+        } catch (error) {
+            if (!isRateLimited(error)) throw error;
+            await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_RETRY_DELAY));
+            return download();
+        }
+    }
+
     /**
      * Optional entry: the importer accepts a ZIP without it, so a failed download only skips it.
      * Full size only, never profile_pic_url: it is a 150x150 thumbnail.
@@ -123,7 +149,7 @@
         const url = user?.hd_profile_pic_url_info?.url;
         if (!url) return null;
         try {
-            const blob = await fetchProgressiveMediaBlob(url);
+            const blob = await retryOnRateLimit(() => fetchProgressiveMediaBlob(url));
             const format = resolveMediaFormatFromContentType(blob.type) || resolveMediaFormat(url) || 'jpg';
             return { blob, format };
         } catch (error) {
@@ -162,9 +188,11 @@
 
         let processed = 0;
         for (const item of data.media) {
-            const blob = await fetchBestMediaBlob(item, ({ percent }) => {
-                onProgress(((processed + percent / 100) / data.media.length) * 90);
-            });
+            const blob = await retryOnRateLimit(() =>
+                fetchBestMediaBlob(item, ({ percent }) => {
+                    onProgress(((processed + percent / 100) / data.media.length) * 90);
+                }),
+            );
             const fileName = getMediaFileName(data, item, blob);
             assertMediaNameHasId(fileName, item, data.type);
             files.push({ title: getUniqueArchiveEntryName(fileName, usedNames), data: blob });
@@ -509,6 +537,7 @@
         }
 
         syncProfileExportButtons(activeButtons);
+        checkUpstreamButtons();
 
         document.querySelectorAll(OWN_BUTTONS).forEach((button) => {
             if (!activeButtons.has(button)) button.remove();
@@ -518,6 +547,87 @@
                 host.classList.remove(PROFILE_PICTURE_HOST_CLASS);
             }
         });
+    }
+
+    // Once per page load and message, until dismissed.
+    function showNotice(key, message) {
+        if (shownNotices.has(key)) return;
+        shownNotices.add(key);
+        const notice = document.createElement('div');
+        notice.className = NOTICE_CLASS;
+        notice.setAttribute('role', 'status');
+        const text = document.createElement('span');
+        text.textContent = message;
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.textContent = '\u00d7';
+        close.setAttribute('aria-label', 'Dismiss');
+        close.addEventListener('click', () => notice.remove());
+        notice.append(text, close);
+        document.body.append(notice);
+    }
+
+    // The upstream button the export button follows on this page, if any.
+    function getExpectedUpstreamButtonClass() {
+        if (window.location.pathname.match(IG_POST_REGEX)?.[2]) return UPSTREAM_BUTTON_CLASS;
+        if (getCurrentStoryFromPath()) return UPSTREAM_STORY_BUTTON_CLASS;
+        return '';
+    }
+
+    /**
+     * The post and story export buttons only exist next to upstream's: report a post or story page that never
+     * gets one (upstream's markup or Instagram's changed). Not with the "Legacy" style, which removes them on purpose.
+     */
+    function checkUpstreamButtons() {
+        const expected = downloadUiPreferences.shows('inline') ? getExpectedUpstreamButtonClass() : '';
+        if (!expected || document.querySelector(`.${expected}`)) {
+            clearTimeout(missingUpstreamTimer);
+            missingUpstreamTimer = 0;
+            return;
+        }
+        if (missingUpstreamTimer) return;
+        missingUpstreamTimer = setTimeout(() => {
+            missingUpstreamTimer = 0;
+            const stillExpected = downloadUiPreferences.shows('inline') ? getExpectedUpstreamButtonClass() : '';
+            if (!stillExpected || document.querySelector(`.${stillExpected}`)) return;
+            showNotice(
+                'missing-upstream',
+                'Instagram export was unable to attach its functionality to the page. Reload to try again. ' +
+                    'If this keeps happening, your extension is probably outdated.',
+            );
+        }, UPSTREAM_BUTTON_TIMEOUT);
+    }
+
+    /**
+     * Story page: the story. Post open in an overlay: that post. Otherwise the post covering
+     * the middle of the screen (or nearest to it), then the profile.
+     */
+    function findShortcutTarget() {
+        if (getCurrentStoryFromPath()) return document.querySelector(`.${STORY_BUTTON_CLASS}`);
+        const inDialog = [...document.querySelectorAll('[role="dialog"]')]
+            .map((dialog) => dialog.querySelector(`.${BUTTON_CLASS}`))
+            .find(Boolean);
+        if (inDialog) return inDialog;
+        const middle = window.innerHeight / 2;
+        const post = [...document.querySelectorAll(`.${BUTTON_CLASS}`)]
+            .map((button) => ({ button, rect: (button.closest('article') ?? button).getBoundingClientRect() }))
+            .filter(({ rect }) => rect.height && rect.bottom > 0 && rect.top < window.innerHeight)
+            .map(({ button, rect }) => ({ button, distance: Math.max(0, rect.top - middle, middle - rect.bottom) }))
+            .sort((first, second) => first.distance - second.distance)[0]?.button;
+        return post ?? document.querySelector(`.${PROFILE_PICTURE_BUTTON_CLASS}`);
+    }
+
+    // Same typing guards as upstream's shortcuts in main.js, plus contenteditable.
+    function handleShortcut(event) {
+        if (event.key !== EXPORT_SHORTCUT_KEY || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+        if (window.location.pathname.startsWith('/direct')) return;
+        const target = event.target;
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+        if (target.role === 'textbox' || target.isContentEditable) return;
+        const button = findShortcutTarget();
+        if (!button) return;
+        event.preventDefault();
+        button.click();
     }
 
     function queueUpdate() {
@@ -546,5 +656,7 @@
     navigation.addEventListener('navigate', queueUpdate);
     // The profile picture button is positioned from the picture's layout, which a resize changes.
     window.addEventListener('resize', queueUpdate);
+    window.addEventListener('downloadUiModeChange', queueUpdate);
+    window.addEventListener('keydown', handleShortcut);
     queueUpdate();
 })();
