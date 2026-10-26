@@ -1,0 +1,88 @@
+/* Post export button, see SPECS.md. Mirrors upstream's .igd-post-inline-download look. */
+.igd-post-inline-export {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+    margin: 0;
+    padding: 8px;
+    color: rgb(var(--ig-primary-text));
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
+    outline: none;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition:
+        background-color 120ms ease,
+        opacity 120ms ease;
+}
+
+.igd-post-inline-export:hover {
+    background-color: rgb(var(--ig-secondary-background));
+}
+
+.igd-post-inline-export:active {
+    opacity: 0.65;
+}
+
+.igd-post-inline-export:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: -2px;
+}
+
+.igd-post-inline-export > svg {
+    display: block;
+    flex: none;
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.25;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+}
+
+/* Same rhythm as upstream's reel button in the vertical reels action column */
+.igd-post-inline-export-reel {
+    margin: -8px -8px 20px;
+}
+
+/* Progress ring, driven by upstream's setInlineDownloadProgress() */
+.igd-post-inline-export::before {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    background: conic-gradient(
+        from -90deg,
+        currentColor var(--inline-download-progress, 0%),
+        rgba(var(--ig-primary-text), 0.25) 0
+    );
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
+    transition: opacity 120ms ease;
+}
+
+.igd-post-inline-export.igd-inline-downloading::before {
+    opacity: 1;
+}
+
+.igd-post-inline-export.igd-inline-downloading {
+    cursor: progress;
+}
+
+.igd-post-inline-export-failed {
+    color: rgb(var(--ig-error-or-destructive, 237, 73, 86));
+}
+
+.igd-post-inline-export-failed::before {
+    opacity: 1;
+    background: currentColor;
+}
