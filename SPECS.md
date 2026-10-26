@@ -104,6 +104,7 @@ Names come from upstream's filename settings for the post scope (settings dialog
 
 - The only requirement: the post tokens include `#id`. For media, `#id` is the slide's numeric id: `carousel_media[i].pk` for a carousel, the post's `pk` for single media. Upstream's default tokens already include it.
 - Without `#id`, media names carry no item id (and may collide, upstream then appends `_2`, `_3`), so the importer refuses the ZIP. A wrong config fails loudly, it never imports wrongly.
+- Upstream cuts names at 180 characters, so a long `#title` before `#id` can cut the id off. The export checks every media name contains its item id, before downloading and again on the final name, and otherwise fails with the cause in the button's tooltip instead of saving a ZIP the importer refuses. It never shortens names itself.
 - Slide order is not in the names. It is the order of `carousel_media` in the post object.
 - Token order and other tokens do not matter to the importer. It never reads the ZIP's own name.
 

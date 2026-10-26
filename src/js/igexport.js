@@ -52,6 +52,20 @@
         };
     }
 
+    /**
+     * The importer pairs media to slides by the item id in the name. Names come from upstream's settings,
+     * so the id is missing when the post template lacks #id or the 180-character limit cut it off
+     * (e.g. a long #title before #id). Fail with the cause instead of saving a ZIP the importer refuses.
+     */
+    function assertMediaNameHasId(fileName, item) {
+        const id = String(item.id ?? '');
+        if (id && fileName.includes(id)) return;
+        throw new Error(
+            `media name "${fileName}" lacks item id ${id}: add #id to the Posts file name template, ` +
+                'or move it before #title (names are cut at 180 characters)',
+        );
+    }
+
     function getProvenance(exportedAt) {
         const manifest = chrome.runtime.getManifest();
         return {
@@ -97,12 +111,17 @@
             { title: PROVENANCE_ENTRY, data: jsonBlob(getProvenance(exportedAt)) },
         ];
 
+        // Check names before downloading anything; checked again below, the final name can depend on the blob.
+        data.media.forEach((item) => assertMediaNameHasId(getMediaFileName(data, item, null), item));
+
         let processed = 0;
         for (const item of data.media) {
             const blob = await fetchBestMediaBlob(item, ({ percent }) => {
                 onProgress(((processed + percent / 100) / data.media.length) * 90);
             });
-            files.push({ title: getUniqueArchiveEntryName(getMediaFileName(data, item, blob), usedNames), data: blob });
+            const fileName = getMediaFileName(data, item, blob);
+            assertMediaNameHasId(fileName, item);
+            files.push({ title: getUniqueArchiveEntryName(fileName, usedNames), data: blob });
             processed++;
             onProgress((processed / data.media.length) * 90);
         }
