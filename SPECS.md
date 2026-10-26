@@ -11,19 +11,21 @@ The consumer of the export is the importer in `marco-rubio/instagram-archive`. C
 - Export a post as a single ZIP that the importer can ingest.
 - Loose media files are not enough: the importer needs the metadata next to the media.
 - Keep the custom code self-contained, so syncing with upstream causes as few conflicts as possible and the export keeps working if upstream changes or drops similar features.
-- The export never depends on upstream's filename settings. Changing them must not change the export.
+- No custom naming logic: names come from upstream's filename token settings. Only the format marker is fixed in code.
 
 ## Post export ZIP, format version 2
 
 ### Layout
 
+With upstream's default post tokens (`#username`, `#id`, `#date`):
+
 ```
-username_<postId>.zip
-|-- igexport                          format marker, contains "2"
-|-- username_<itemId>.<ext>           media, one per slide
-|-- username_<postId>.txt             caption
-|-- username_<postId>.json            post object
-`-- username_<postId>.profile.<ext>   author's profile picture
+username_<postId>_<date>.zip
+|-- igexport                                 format marker, contains "2"
+|-- username_<itemId>_<date>.<ext>           media, one per slide
+|-- username_<postId>_<date>.txt             caption
+|-- username_<postId>_<date>.json            post object
+`-- username_<postId>_<date>.profile.<ext>   author's profile picture
 ```
 
 Archive comment: `igexport v2`.
@@ -38,36 +40,36 @@ Archive comment: `igexport v2`.
 
 ### Entry rules
 
-The importer classifies entries by extension only. The export must respect:
+The importer finds entries by extension and by item id, not by name:
 
-| Entry           | Rule                                                                                       |
-| --------------- | ------------------------------------------------------------------------------------------ |
-| Marker          | The only entry without an extension.                                                       |
-| Post object     | The only `.json` entry. Never add a second `.json`.                                        |
-| Caption         | The only `.txt` entry.                                                                     |
-| Profile picture | The only entry whose name **ends** with `.profile.<ext>`.                                  |
-| Media           | Everything else. Never ends with `.profile.<ext>`.                                         |
+| Entry           | Rule                                                                                         |
+| --------------- | -------------------------------------------------------------------------------------------- |
+| Marker          | `igexport`, the only entry without an extension. Fixed in code, never configurable.          |
+| Post object     | The only `.json` entry. Never add a second `.json`.                                          |
+| Caption         | The only `.txt` entry. Ignored by the importer.                                              |
+| Media           | One entry per slide. Each name **must contain its own item id** (see Naming).                |
+| Profile picture | The one entry left over after every slide id is matched to a media entry.                    |
 
-- The profile picture is identified by the end of the name, not by `.profile.` anywhere: usernames may contain periods (`my.profile.page`), so `.profile.` can appear inside a media name.
-- New kinds of content go in a new entry kind agreed with the importer, never in an existing slot.
+- The importer pairs the slide ids from the post object 1:1 with media entries. Two entries with one id, or a slide id no entry carries, refuses the ZIP with the file named.
+- The profile picture's `.profile.<ext>` suffix is only a cross-check for the importer, not the rule.
+- Any other entry would be a second leftover and refuse the ZIP. New entry kinds are agreed with the importer first.
 
 ### Naming
 
-All names are built by the export itself, as `username_<id>`:
+Names come from upstream's filename settings for the post scope (settings dialog, "File name templates"), never from custom logic in the export:
 
-| Entry           | Name                              |
-| --------------- | --------------------------------- |
-| Archive         | `username_<postId>.zip`           |
-| Media           | `username_<itemId>.<ext>`         |
-| Caption         | `username_<postId>.txt`           |
-| Post object     | `username_<postId>.json`          |
-| Profile picture | `username_<postId>.profile.<ext>` |
+| Entry           | Name                                                  |
+| --------------- | ----------------------------------------------------- |
+| Archive         | Upstream archive name (`getArchiveFileName`), `.zip`  |
+| Media           | Upstream media name (`getMediaFileName`)              |
+| Caption         | Archive base name + `.txt`                            |
+| Post object     | Archive base name + `.json`                           |
+| Profile picture | Archive base name + `.profile.<ext>`                  |
 
-- `<postId>` is the post's numeric id: `pk` of the post object.
-- `<itemId>` is the slide's numeric id: `carousel_media[i].pk` for a carousel, the post's `pk` for single media. Bytes pair to slides by this id.
+- The only requirement: the post tokens include `#id`. For media, `#id` is the slide's numeric id: `carousel_media[i].pk` for a carousel, the post's `pk` for single media. Upstream's default tokens already include it.
+- Without `#id`, media names carry no item id (and may collide, upstream then appends `_2`, `_3`), so the importer refuses the ZIP. A wrong config fails loudly, it never imports wrongly.
 - Slide order is not in the names. It is the order of `carousel_media` in the post object.
-- Usernames may contain `_`, so the id is everything after the **last** `_`.
-- The importer never reads the ZIP's own name. It is for humans and may get a browser suffix like ` (1)`.
+- Token order and other tokens do not matter to the importer. It never reads the ZIP's own name.
 
 ### Content
 
@@ -78,7 +80,7 @@ All names are built by the export itself, as `username_<id>`:
 | Post object     | Raw post object as returned by Instagram, unmodified, pretty-printed with 2-space indentation.        |
 | Profile picture | From `user.hd_profile_pic_url_info.url`, falling back to `user.profile_pic_url`.                      |
 
-- Media extension follows the content type (`.jpg`, `.webp`, `.mp4`, ...).
+- Media extension follows the content type (`.jpg`, `.webp`, `.mp4`, ...), as upstream names it.
 - If any slide cannot be downloaded, the export fails instead of saving an incomplete ZIP: the importer checks the media count against the slides.
 - The profile picture comes from the CDN URL already in the post object, so it costs no extra API call. If its download fails, the ZIP is still saved without it.
 
