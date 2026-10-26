@@ -51,7 +51,7 @@ Archive comment: `igexport v2`.
 
 ### Kind
 
-- Entry `igexport-kind`, no extension. Contents: one bare ASCII word, nothing else (no newline): `post` or `story`.
+- Entry `igexport-kind`, no extension. Contents: one bare ASCII word, nothing else (no newline): `post`, `story` or `profile`.
 - Absent means `post` (the first v2 exports did not have it). Unknown word: the importer refuses.
 - Separate from the version: `igexport` says how to read the container, `igexport-kind` says what is inside. A new kind does not bump the version.
 - The importer currently refuses `story` with "this build imports posts only". Not missing information (story items have their own `code` = encoded `pk`, and `product_type` `story`), but missing schema: stories link as `/stories/<username>/<pk>/` and have an expiry, and get their own tables there, backlogged. The export ships stories anyway, the kind entry keeps them from being read as posts.
@@ -168,6 +168,27 @@ username_<storyId>.zip
 - When `igexport-user` is present the importer reads the account from it as a whole. If the item's `user.pk` is also present and disagrees with it, the importer refuses: identity assembled from two contradicting entries is never guessed. Both are the author's account pk, so this should not happen.
 - No profile picture: the story item's and the reel's `user` only carry the 150x150 thumbnail, and the full-size one would need a heavily rate-limited user info request. The importer treats the picture as optional.
 
+## Profile export ZIP
+
+Same format version 2 and container rules, with `igexport-kind` `profile`. One ZIP per account, exported from its profile page (`/<username>/` and its tabs).
+
+```
+username_<userPk>.zip
+|-- igexport                         "2"
+|-- igexport-kind                    "profile"
+|-- igexport-provenance              source "profile-page-data"
+|-- username_<userPk>.json           the user object
+`-- username_<userPk>.profile.<ext>  full-size profile picture
+```
+
+- Source: the data Instagram already loaded to render the profile header, read in the page's own JS world (React tree, own data properties only, getters never invoked). Zero API requests.
+- Full-size picture only (`hd_profile_pic_url_info.url`). If the page data has none, the export fails with the reason: never a thumbnail, never a rate-limited fallback request.
+- `.json`: raw and unmodified, and self-contained. If the user record is a store record that references other records (`__ref`-style) instead of embedding them, the referenced records are shipped too: one JSON object mapping record ids to their raw records, each unchanged. `source` then says it is a store slice, not an API response.
+- Required keys: `pk` and `username` (an authoritative account / username observation at `exported_at`). `full_name` and `is_verified` may be used later. Nothing else is promised; counts are volatile and not used.
+- Names from upstream's Posts tokens with the account pk as `#id`: `username_<userPk>`. Tokens without a value (`#date`, `#title`) are dropped.
+- No `.txt`, no media entries.
+- The importer refuses `profile` ("this build imports posts only") until it stores account avatars, backlogged there.
+
 ## Format version 1 (v5, branch `my-branch-v5`)
 
 Still accepted by the importer, identified by the missing marker.
@@ -189,4 +210,4 @@ username [shortcode].zip
 - [ ] Story with a reshared post (`story_feed_media` / `reshared_story_media_author` set): send a sample to the importer when one appears.
 - [ ] How stories fit the archive: own tables on the importer side, backlogged. First story sample: the item has its own `code`, equal to the encoded `pk` as for posts; `taken_at` and `expiring_at` (+24 h) in seconds; `video_duration` present (unlike posts); `product_type` `story`; stub `user` (pk only); no reshared post (`story_feed_media` null); link and music stickers present.
 - [ ] Highlights export: later. Upstream's highlight buttons do not show consistently yet.
-- [ ] Standalone profile picture button (v5: profile pages only, read from page data, named `username [userId_YYYYMMDDHHmmssZ].jpeg`): keep or drop.
+- [ ] Profile export: button placement (inline in the profile header or floating), and the real shape of the page's user record (flat or store slice).
