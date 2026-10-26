@@ -124,19 +124,19 @@ function getValueByKey(obj, key) {
     return null;
 };
 
-function resetDownloadState() {
-    const DOWNLOAD_BUTTON = document.querySelector('.download-button');
-    DOWNLOAD_BUTTON.classList.remove('loading');
-    DOWNLOAD_BUTTON.textContent = 'Download';
-    DOWNLOAD_BUTTON.disabled = false;
-}
-
-function resetZipShortcutState() {
+function resetZipShortcutState(text = 'Download ZIP') {
     const ZIP_DOWNLOAD_BUTTON = document.querySelector('.download-zip-button');
     if (!ZIP_DOWNLOAD_BUTTON) return;
     ZIP_DOWNLOAD_BUTTON.classList.remove('loading');
-    ZIP_DOWNLOAD_BUTTON.textContent = 'Download ZIP';
+    ZIP_DOWNLOAD_BUTTON.textContent = text;
     ZIP_DOWNLOAD_BUTTON.disabled = false;
+}
+
+function showZipFailedState() {
+    resetZipShortcutState('Failed');
+    // Keep disabled for a while, retry right away only make it worse
+    document.querySelector('.download-zip-button').disabled = true;
+    setTimeout(() => { resetZipShortcutState(); }, 3000);
 }
 
 async function saveMedia(media, fileName) {
@@ -150,51 +150,37 @@ async function saveMedia(media, fileName) {
 }
 
 async function saveZip() {
-    const DOWNLOAD_BUTTON = document.querySelector('.download-button');
-    DOWNLOAD_BUTTON.classList.add('loading');
-    DOWNLOAD_BUTTON.textContent = 'Loading...';
-    DOWNLOAD_BUTTON.disabled = true;
     const selectedMedia = Array.from(document.querySelectorAll('.overlay.checked')).map(item => item.previousElementSibling);
-    if (selectedMedia.length === 0) return resetDownloadState();
+    if (selectedMedia.length === 0) return;
     const firstItemName = selectedMedia[0].dataset.downloadName || 'download';
     const firstItemMeta = mediaDownloadMeta.get(selectedMedia[0]) || {};
     const zipBaseName = firstItemMeta.zipBaseName || firstItemName.replace(/\.[^./\\]+$/, '');
     const zipFileName = `${sanitizeFilename(zipBaseName, 'download')}.zip`;
     async function fetchSelectedMedia() {
-        let count = 0;
         const results = await Promise.allSettled(selectedMedia.map(async (media) => {
             const meta = mediaDownloadMeta.get(media) || {};
             if (media.classList.contains('post-metadata-item')) {
                 const text = postMetadataDownloadText.get(media) ?? '{}';
                 const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
-                const data = {
+                return {
                     title: meta.fileName || media.dataset.downloadName || 'metadata.json',
                     data: blob
                 };
-                count++;
-                DOWNLOAD_BUTTON.textContent = `${count}/${selectedMedia.length}`;
-                return data;
             }
             if (media.classList.contains('post-description-item')) {
                 const text = postDescriptionDownloadText.get(media) ?? '';
                 const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-                const data = {
+                return {
                     title: meta.fileName || media.dataset.downloadName || 'description.txt',
                     data: blob
                 };
-                count++;
-                DOWNLOAD_BUTTON.textContent = `${count}/${selectedMedia.length}`;
-                return data;
             }
             const res = await fetch(media.src);
             const blob = await res.blob();
-            const data = {
+            return {
                 title: meta.fileName || media.dataset.downloadName || 'media',
                 data: blob
             };
-            count++;
-            DOWNLOAD_BUTTON.textContent = `${count}/${selectedMedia.length}`;
-            return data;
         }));
         results.forEach(promise => {
             if (promise.status === 'rejected') throw new Error('Fail to fetch');
@@ -208,45 +194,61 @@ async function saveZip() {
         document.querySelectorAll('.overlay').forEach(element => {
             element.classList.remove('checked');
         });
-        resetDownloadState();
     } catch (error) {
         console.log(error);
-        resetDownloadState();
     }
 }
 
-async function saveFullPostZip() {
+function getZipTarget() {
+    const currentPath = window.location.pathname;
+    if (currentPath.match(IG_HIGHLIGHT_REGEX)) {
+        appState.setCurrentHightlightsId();
+        return appState.current.highlights ? 'highlights' : 'none';
+    }
+    if (currentPath.match(IG_STORY_REGEX)) {
+        appState.setCurrentUsername();
+        return appState.current.username ? 'stories' : 'none';
+    }
+    // On home page, shortcode is kept up to date by home-scroll-handler.js
+    const isPostPage = currentPath.match(IG_POST_REGEX) || currentPath === '/';
+    if (!isPostPage && appState.currentDisplay !== 'post') return 'none';
+    appState.setCurrentShortcode();
+    return appState.current.shortcode ? 'post' : 'none';
+}
+
+async function saveFullZip() {
     const ZIP_DOWNLOAD_BUTTON = document.querySelector('.download-zip-button');
     if (!ZIP_DOWNLOAD_BUTTON) return;
     ZIP_DOWNLOAD_BUTTON.classList.add('loading');
     ZIP_DOWNLOAD_BUTTON.textContent = 'Loading...';
     ZIP_DOWNLOAD_BUTTON.disabled = true;
-    const isPostPage = window.location.pathname.match(IG_POST_REGEX);
-    if (!isPostPage && appState.currentDisplay !== 'post') {
-        return resetZipShortcutState();
-    }
-    appState.setCurrentShortcode();
-    if (!appState.current.shortcode) return resetZipShortcutState();
-    const data = await downloadPostPhotos();
-    if (!data || !Array.isArray(data.media) || data.media.length === 0) {
-        return resetZipShortcutState();
-    }
-    const postDate = new Date(data.date * 1000);
-    const date = postDate.toISOString().split('T')[0];
-    const time = postDate.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' });
-    const filenameTemplate = await getFilenameTemplate();
-    const mediaCount = data.media.length;
-    const zipBaseName = getDownloadFileName(filenameTemplate, {
-        username: data.user.username,
-        hash: data.hash || '',
-        id: data.media[0]?.id || '',
-        date,
-        time,
-        index: '',
-        extension: '',
-        isCarousel: false
-    });
+    const target = getZipTarget();
+    if (target === 'none') return resetZipShortcutState();
+    let failed = false;
     try {
+        const data = target === 'post' ? await downloadPostPhotos() : await downloadStoryPhotos(target);
+        if (!data || !Array.isArray(data.media) || data.media.length === 0) {
+            failed = true;
+            return;
+        }
+        const isPost = target === 'post';
+        const postDate = new Date(data.date * 1000);
+        const date = postDate.toISOString().split('T')[0];
+        const time = postDate.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' });
+        const filenameTemplate = await getFilenameTemplate();
+        const mediaCount = data.media.length;
+        // Posts also include description and metadata files
+        const totalCount = isPost ? mediaCount + 2 : mediaCount;
+        const zipBaseName = getDownloadFileName(filenameTemplate, {
+            username: data.user.username,
+            hash: data.hash || '',
+            id: data.media[0]?.id || '',
+            date,
+            time,
+            index: '',
+            extension: '',
+            isCarousel: false
+        });
         let completed = 0;
         const files = await Promise.all(data.media.map(async (item, mediaIndex) => {
             const extension = item.isVideo ? 'mp4' : 'jpeg';
@@ -263,12 +265,17 @@ async function saveFullPostZip() {
             const response = await fetch(item.url);
             const blob = await response.blob();
             completed++;
-            ZIP_DOWNLOAD_BUTTON.textContent = `${completed}/${mediaCount + 2}`;
+            ZIP_DOWNLOAD_BUTTON.textContent = `${completed}/${totalCount}`;
             return {
                 title: fileName,
                 data: blob
             };
         }));
+        if (!isPost) {
+            const blob = await createZip(files);
+            saveFile(blob, `${sanitizeFilename(zipBaseName, 'download')}.zip`);
+            return;
+        }
         const descriptionFileName = getDownloadFileName(filenameTemplate, {
             username: data.user.username,
             hash: data.hash || '',
@@ -284,7 +291,7 @@ async function saveFullPostZip() {
             data: new Blob([data.caption || ''], { type: 'text/plain;charset=utf-8' })
         });
         completed++;
-        ZIP_DOWNLOAD_BUTTON.textContent = `${completed}/${mediaCount + 2}`;
+        ZIP_DOWNLOAD_BUTTON.textContent = `${completed}/${totalCount}`;
         const metadataFileName = getDownloadFileName(filenameTemplate, {
             username: data.user.username,
             hash: data.hash || '',
@@ -300,18 +307,20 @@ async function saveFullPostZip() {
             data: new Blob([JSON.stringify(data.postInfo || {}, null, 2)], { type: 'application/json;charset=utf-8' })
         });
         completed++;
-        ZIP_DOWNLOAD_BUTTON.textContent = `${completed}/${mediaCount + 2}`;
+        ZIP_DOWNLOAD_BUTTON.textContent = `${completed}/${totalCount}`;
         const blob = await createZip(files);
         saveFile(blob, `${sanitizeFilename(zipBaseName, 'download')}.zip`);
     } catch (error) {
         console.log(error);
+        failed = true;
     } finally {
-        resetZipShortcutState();
+        if (failed) showZipFailedState();
+        else resetZipShortcutState();
     }
 }
 
 function handleZipShortcutDownload() {
-    saveFullPostZip();
+    saveFullZip();
 }
 
 function shouldDownload() {
@@ -341,36 +350,11 @@ function shouldDownload() {
 }
 
 function setDownloadState(state = 'ready') {
-    const DOWNLOAD_BUTTON = document.querySelector('.download-button');
     const MEDIA_CONTAINER = document.querySelector('.media-container');
     const options = {
-        ready() {
-            DOWNLOAD_BUTTON.classList.add('loading');
-            DOWNLOAD_BUTTON.textContent = 'Loading...';
-            DOWNLOAD_BUTTON.disabled = true;
-            MEDIA_CONTAINER.replaceChildren();
-        },
-        fail() { resetDownloadState(); },
-        success() {
-            DOWNLOAD_BUTTON.disabled = false;
-            appState.setPreviousValues();
-            const photosArray = MEDIA_CONTAINER.querySelectorAll('img , video');
-            let loadedPhotos = 0;
-            function countLoaded() {
-                loadedPhotos++;
-                if (loadedPhotos === photosArray.length) resetDownloadState();
-            }
-            photosArray.forEach(media => {
-                if (media.tagName === 'IMG') {
-                    media.addEventListener('load', countLoaded);
-                    media.addEventListener('error', countLoaded);
-                }
-                else {
-                    media.addEventListener('loadeddata', countLoaded);
-                    media.addEventListener('abort', countLoaded);
-                }
-            });
-        }
+        ready() { MEDIA_CONTAINER.replaceChildren(); },
+        fail() { },
+        success() { appState.setPreviousValues(); }
     };
     options[state]();
 }

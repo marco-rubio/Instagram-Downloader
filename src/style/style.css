@@ -176,7 +176,7 @@
     color: rgb(var(--ig-primary-text));
 }
 
-.download-button {
+.download-profile-pic-button {
     width: 120px;
     height: 30px;
     color: white;
@@ -224,13 +224,18 @@
 .download-zip-button:hover {
     background-color: rgb(var(--ig-colors-button-primary-background--hover));
 }
-.download-button:hover {
+.download-profile-pic-button:hover {
     background-color: rgb(var(--ig-colors-button-primary-background--hover));
 }
 
-.download-button.loading {
+.download-profile-pic-button.loading {
     cursor: default;
     background-color: rgb(var(--ig-colors-button-primary-background--pressed));
+}
+
+/* Only available on profile page */
+.download-profile-pic-button.unavailable {
+    display: none;
 }
 
 .download-zip-button.loading {
@@ -240,22 +245,7 @@
 
 /* Support bottom navigation */
 @media (max-width:767px) {
-    .download-button {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-
-        text-align: center;
-        border-radius: 50%;
-        bottom: 70px;
-        right: 20px;
-
-        font-size: 0;
-        width: 50px;
-        height: 50px;
-    }
-
-    .download-zip-button {
+    .download-profile-pic-button {
         display: flex;
         align-items: center;
         justify-content: center;
@@ -268,14 +258,24 @@
         height: 50px;
     }
 
-    .download-button:before {
-        content: '⇓';
+    .download-zip-button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        border-radius: 50%;
+        bottom: 70px;
+        right: 20px;
+        font-size: 0;
+        width: 50px;
+        height: 50px;
+    }
+
+    .download-profile-pic-button:before {
+        content: 'PFP';
         display: inline-block;
-        font-size: 32px;
-        position: absolute;
-        top: 60%;
-        left: 50%;
-        transform: translate(-50%, -50%);
+        font-size: 14px;
+        font-weight: 700;
     }
 
     .download-zip-button:before {

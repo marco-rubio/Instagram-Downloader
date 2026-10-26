@@ -22,11 +22,13 @@ This extension should work fine on the following browsers with `fetch()` API and
 
 ## Usage
 
-* Go to any `post`, `reels`, `stories`, etc. Then click `Download` button to fetch data.
+* Go to any `post`, `reels`, `stories` or highlights. Then click `Download ZIP` to save every photo/video in a zip file (posts also include the description and metadata).
 
-* Click on any photos/videos to save.
+* Go to any profile and click `Profile Pic` to save the account's profile picture in full resolution (the button only shows on profile pages).
 
-* Toggle multi select by click on `Photos` and select photos by click on them (or select all by click and hold on `Photos`). Then click on `Download` to save zip file.
+* Press `D` to open the media panel, then click on any photos/videos to save.
+
+* Toggle multi select by click on `Photos` and select photos by click on them (or select all by click and hold on `Photos`). Then press `D` to save zip file.
 
 * If you scroll on the home page, this app will auto detect the post you wanna download so you don't have to click to comment section to open modal. Thanks to ReactFiber.
 
@@ -41,7 +43,7 @@ You can configure file naming from the extension options page:
 Supported variables:
 
 * `{username}`
-* `{hash}` (`shortcode` for post/reel, highlight id for highlights)
+* `{hash}` (`shortcode` for post/reel, highlight id for highlights, `userId_YYYYMMDDHHmmssZ` (UTC) for profile pictures)
 * `{id}` (media id, or `description` for caption file)
 * `{date}` (`YYYY-MM-DD`)
 * `{time}` (`HH:mm`, 24-hour format)
@@ -68,6 +70,7 @@ Example template:
 * Download highlight stories ✔
 * Support high resolution ✔
 * Support download zip file ✔
+* Download profile picture ✔
 
 ## Customize
 
@@ -88,7 +91,7 @@ Edit Hide / Show Transition effects
 
 Some keyboard shortcuts will not work if you use an external application for typing.
 
-* Download: `D`
+* Open media panel / save selected: `D`
 * Close: `esc` `C` `c`
 * Select all `S` `s`
 * Keyboard shortcut should work if you don't focus on special HTML Elements like `input` `textarea` or any element with `textbox` role (ex: comment, search, ...)

@@ -121,14 +121,14 @@ const appState = Object.freeze((() => {
                     </p>
                 </div>
             </div>
-            <button class="download-button">Download</button>
+            <button class="download-profile-pic-button">Profile Pic</button>
             <button class="download-zip-button">Download ZIP</button>`));
     }
     function handleEvents() {
         const ESC_BUTTON = document.querySelector('.esc-button');
         const TITLE_CONTAINER = document.querySelector('.title-container').firstElementChild;
         const DISPLAY_CONTAINER = document.querySelector('.display-container');
-        const DOWNLOAD_BUTTON = document.querySelector('.download-button');
+        const PROFILE_PIC_BUTTON = document.querySelector('.download-profile-pic-button');
         const ZIP_DOWNLOAD_BUTTON = document.querySelector('.download-zip-button');
         const IGNORE_FOCUS_ELEMENTS = ['INPUT', 'TEXTAREA'];
         const ESC_EVENT_KEYS = ['Escape', 'C', 'c'];
@@ -188,7 +188,7 @@ const appState = Object.freeze((() => {
             }
         }
         function hideExtension() {
-            DOWNLOAD_BUTTON.setAttribute('hidden', 'true');
+            PROFILE_PIC_BUTTON.setAttribute('hidden', 'true');
             ZIP_DOWNLOAD_BUTTON.setAttribute('hidden', 'true');
             DISPLAY_CONTAINER.classList.add('hide');
             DISPLAY_CONTAINER.setAttribute('style', 'display: none;');
@@ -198,7 +198,7 @@ const appState = Object.freeze((() => {
             });
         }
         function showExtension() {
-            DOWNLOAD_BUTTON.removeAttribute('hidden');
+            PROFILE_PIC_BUTTON.removeAttribute('hidden');
             ZIP_DOWNLOAD_BUTTON.removeAttribute('hidden');
         }
         function handleChatTab() {
@@ -263,7 +263,7 @@ const appState = Object.freeze((() => {
             if (e.target.role === 'textbox') return;
             if (e.ctrlKey) return;
             if (DOWNLOAD_EVENT_KEYS.includes(e.key)) {
-                return DOWNLOAD_BUTTON.click();
+                return handleDownload();
             }
             if (ESC_EVENT_KEYS.includes(e.key)) {
                 return ESC_BUTTON.click();
@@ -282,7 +282,7 @@ const appState = Object.freeze((() => {
         handleLongClick(TITLE_CONTAINER, () => {
             TITLE_CONTAINER.classList.toggle('multi-select');
         }, handleSelectAll);
-        DOWNLOAD_BUTTON.addEventListener('click', handleDownload);
+        PROFILE_PIC_BUTTON.addEventListener('click', saveProfilePicture);
         ZIP_DOWNLOAD_BUTTON.addEventListener('click', handleZipShortcutDownload);
         window.addEventListener('online', () => {
             DISPLAY_CONTAINER.querySelectorAll('img , video').forEach(media => {
@@ -291,6 +291,7 @@ const appState = Object.freeze((() => {
         });
         window.addEventListener('pathChange', (e) => {
             const currentPath = e.detail.currentPath;
+            PROFILE_PIC_BUTTON.classList.toggle('unavailable', !getProfileUsernameFromPath(currentPath));
             // Hide/Show Download button when user navigate
             if (currentPath.startsWith('/direct')) {
                 hideExtension();
@@ -304,13 +305,14 @@ const appState = Object.freeze((() => {
             // Download button z-index unset by default to prevent overlay over other element
             if (currentPath.match(IG_POST_REGEX) ||
                 currentPath.match(IG_STORY_REGEX) ||
-                currentPath.match(IG_HIGHLIGHT_REGEX)
+                currentPath.match(IG_HIGHLIGHT_REGEX) ||
+                getProfileUsernameFromPath(currentPath)
             ) {
-                DOWNLOAD_BUTTON.setAttribute('style', 'z-index: 1000000;');
+                PROFILE_PIC_BUTTON.setAttribute('style', 'z-index: 1000000;');
                 ZIP_DOWNLOAD_BUTTON.setAttribute('style', 'z-index: 1000000;');
             }
             else {
-                DOWNLOAD_BUTTON.removeAttribute('style');
+                PROFILE_PIC_BUTTON.removeAttribute('style');
                 ZIP_DOWNLOAD_BUTTON.removeAttribute('style');
             }
         });
@@ -328,14 +330,15 @@ const appState = Object.freeze((() => {
         });
         setTheme();
         handleChatTab();
+        PROFILE_PIC_BUTTON.classList.toggle('unavailable', !getProfileUsernameFromPath());
         if (window.location.pathname.startsWith('/direct')) {
-            DOWNLOAD_BUTTON.setAttribute('hidden', 'true');
+            PROFILE_PIC_BUTTON.setAttribute('hidden', 'true');
             ZIP_DOWNLOAD_BUTTON.setAttribute('hidden', 'true');
             DISPLAY_CONTAINER.classList.add('hide');
         }
     }
     function run() {
-        document.querySelectorAll('.display-container, .download-button, .download-zip-button').forEach(node => {
+        document.querySelectorAll('.display-container, .download-profile-pic-button, .download-zip-button').forEach(node => {
             node.remove();
         });
         initUI();
