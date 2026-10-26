@@ -157,15 +157,14 @@ username_<storyId>.zip
 |-- igexport-user                   only if the story item's `user` has no `username`
 |-- username_<storyId>.<ext>        the story item's media
 |-- username_<storyId>.txt          caption text, usually empty
-|-- username_<storyId>.json         the raw story item
-`-- username_<storyId>.profile.<ext>
+`-- username_<storyId>.json         the raw story item
 ```
 
 - Names come from upstream's **Stories** filename template (separate from Posts). `#id` is the story item's `pk` for the media, and also for the archive and sidecars: the export passes the story item, not the reel, as what is being named. Upstream's own story ZIP uses the reel id (the user's pk) there, which would give every story of one account the same name.
 - `.json`: the raw story item (one element of the reel's `items[]`), unmodified. Never trimmed or wrapped.
 - `igexport-user`: the reel's `user` object, unmodified, JSON. Only when the story item's `user` has no `username` (one source per fact). Story items carry a stub `user` with `pk` but no `username` and no picture, so in practice it is always added. The importer needs its `pk` (or `pk_id`) and `username`.
 - When `igexport-user` is present the importer reads the account from it as a whole. If the item's `user.pk` is also present and disagrees with it, the importer refuses: identity assembled from two contradicting entries is never guessed. Both are the author's account pk, so this should not happen.
-- Profile picture: the story item's and the reel's `user` only carry the 150x150 thumbnail, so the full-size URL comes from one user info request (`/api/v1/users/<pk>/info/`). That endpoint is heavily rate limited: on a 429 or any other failure the ZIP is saved without a profile picture. See open questions.
+- No profile picture: the story item's and the reel's `user` only carry the 150x150 thumbnail, and the full-size one would need a heavily rate-limited user info request. The importer treats the picture as optional.
 
 ## Format version 1 (v5, branch `my-branch-v5`)
 
@@ -187,6 +186,5 @@ username [shortcode].zip
 
 - [ ] Story with a reshared post (`story_feed_media` / `reshared_story_media_author` set): send a sample to the importer when one appears.
 - [ ] How stories fit the archive: own tables on the importer side, backlogged. First story sample: the item has its own `code`, equal to the encoded `pk` as for posts; `taken_at` and `expiring_at` (+24 h) in seconds; `video_duration` present (unlike posts); `product_type` `story`; stub `user` (pk only); no reshared post (`story_feed_media` null); link and music stickers present.
-- [ ] Story profile picture source: the user info request is often rate limited, so stories often have no profile picture. Options: cache per account (and reuse URLs from post exports), or a GraphQL profile query.
 - [ ] Highlights export: later. Upstream's highlight buttons do not show consistently yet.
 - [ ] Standalone profile picture button (v5: profile pages only, read from page data, named `username [userId_YYYYMMDDHHmmssZ].jpeg`): keep or drop.

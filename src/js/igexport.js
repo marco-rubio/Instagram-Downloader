@@ -106,27 +106,13 @@
     }
 
     /**
-     * Full-size picture only, never profile_pic_url: it is a 150x150 thumbnail.
-     * Post objects carry hd_profile_pic_url_info, story reel users do not: then one user info request.
+     * Optional entry: the importer accepts a ZIP without it, so a failed download only skips it.
+     * Full size only, never profile_pic_url: it is a 150x150 thumbnail.
      */
-    async function getFullSizeProfilePictureUrl(user) {
-        if (user?.hd_profile_pic_url_info?.url) return user.hd_profile_pic_url_info.url;
-        const userId = user?.pk ?? user?.pk_id ?? user?.id;
-        if (!userId) return '';
-        const response = await fetch(new URL(`/api/v1/users/${userId}/info/`, IG_BASE_URL).href, getFetchOptions());
-        // A rate limit or a redirect to the login/home page is not JSON: skip the picture.
-        if (!response.ok || !response.headers.get('content-type')?.includes('json')) {
-            throw new Error(`user info request failed (${response.status})`);
-        }
-        const json = await response.json();
-        return json.user?.hd_profile_pic_url_info?.url || '';
-    }
-
-    // Optional entry: the importer accepts a ZIP without it, so a failed download only skips it.
     async function fetchProfilePicture(user) {
+        const url = user?.hd_profile_pic_url_info?.url;
+        if (!url) return null;
         try {
-            const url = await getFullSizeProfilePictureUrl(user);
-            if (!url) return null;
             const blob = await fetchProgressiveMediaBlob(url);
             const format = resolveMediaFormatFromContentType(blob.type) || resolveMediaFormat(url) || 'jpg';
             return { blob, format };
@@ -294,9 +280,6 @@
         // Story items carry a stub user (pk, no username, no picture): the reel's user is added
         // only when the item lacks the username the importer needs, one source per fact otherwise.
         const extraEntries = item.user?.username ? [] : [{ title: USER_ENTRY, data: jsonBlob(reel.user ?? {}) }];
-        // Prefer a user with a full-size picture; otherwise the reel's user, looked up by its pk.
-        const profileUser =
-            [item.user, reel.user].find((user) => user?.hd_profile_pic_url_info?.url) ?? reel.user ?? item.user;
         return createExportZip(
             {
                 kind: EXPORT_KINDS.STORY,
@@ -305,7 +288,9 @@
                 data: getStoryExportData(item, reel.user),
                 rawObject: item,
                 caption: item.caption?.text?.trim() ?? '',
-                profileUser,
+                // No profile picture: story users only carry the thumbnail, and the full-size one
+                // would need a heavily rate-limited user info request.
+                profileUser: null,
                 extraEntries,
             },
             onProgress,
