@@ -17,10 +17,11 @@ The consumer of the export is the importer in `marco-rubio/instagram-archive`. C
 
 - Inline button with its own icon (archive box), placed right after upstream's inline post download button on every post: feed, post page, reels, single media and carousels.
 - Stories: placed right after upstream's story download button. Exports only the story item on screen. Not shown on highlights yet.
+- Profiles: over the bottom-right corner of the profile picture in the header (the largest image there). It is placed next to the picture's clickable element, not inside it, because clicking the picture opens the account's stories. Repositioned on page changes and window resizes.
 - It attaches to upstream's button instead of finding the action bar itself, so upstream's files stay unchanged. It is shown wherever upstream shows its inline post buttons (download button style "Modern" or "Both").
 - Upstream's inline download buttons (post and story) are hidden with CSS in `src/style/igexport.css`; they stay in the DOM because the export buttons are placed after them. Upstream's download button style must stay "Modern" or "Both", "Legacy" removes them and the export buttons with them.
 - Shows upstream's progress ring while exporting. On failure it shows a red ring for 3 seconds, with the reason in its tooltip.
-- Code: `src/js/igexport.js`, `src/style/igexport.css`. The only upstream file touched is `manifest.json`.
+- Code: `src/js/igexport.js`, `src/js/global/igexport-profile-handler.js` (profile page data, page's JS world), `src/style/igexport.css`. The only upstream file touched is `manifest.json`.
 
 ## Post export ZIP, format version 2
 
@@ -210,4 +211,4 @@ username [shortcode].zip
 - [ ] Story with a reshared post (`story_feed_media` / `reshared_story_media_author` set): send a sample to the importer when one appears.
 - [ ] How stories fit the archive: own tables on the importer side, backlogged. First story sample: the item has its own `code`, equal to the encoded `pk` as for posts; `taken_at` and `expiring_at` (+24 h) in seconds; `video_duration` present (unlike posts); `product_type` `story`; stub `user` (pk only); no reshared post (`story_feed_media` null); link and music stickers present.
 - [ ] Highlights export: later. Upstream's highlight buttons do not show consistently yet.
-- [ ] Profile export: button placement (inline in the profile header or floating), and the real shape of the page's user record (flat or store slice).
+- [ ] Profile export record: the first sample was flat (no store refs) but thin, 7 keys (`pk`, `username`, both picture URLs, `is_unpublished`, live broadcast fields), no `full_name` / `is_verified`. The reader takes the first matching record; a richer one may exist elsewhere in the page data.

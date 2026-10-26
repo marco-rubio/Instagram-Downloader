@@ -148,16 +148,6 @@
     cursor: progress;
 }
 
-/* Failed export, both buttons */
-.igd-inline-export-failed {
-    color: rgb(var(--ig-error-or-destructive, 237, 73, 86));
-}
-
-.igd-inline-export-failed::before {
-    opacity: 1;
-    background: currentColor;
-}
-
 /* Hide upstream's inline download buttons: only the export is used. They stay in the DOM because the export
    buttons are placed right after them; upstream's download button style must stay "Modern" or "Both". */
 .igd-post-inline-download,
@@ -165,4 +155,96 @@
 .igd-story-inline-download,
 .igd-story-inline-download-all {
     display: none !important;
+}
+
+/* Profile export button, over the bottom-right corner of the header's profile picture,
+   placed by placeOnPictureCorner(). */
+.igd-profile-picture-export-host {
+    position: relative;
+}
+
+.igd-profile-picture-export {
+    position: absolute;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    margin: 0;
+    padding: 6px;
+    color: rgb(var(--ig-primary-text));
+    background: rgb(var(--ig-primary-background));
+    border: 0;
+    border-radius: 50%;
+    outline: none;
+    cursor: pointer;
+    box-sizing: border-box;
+    box-shadow:
+        0 0 0 2px rgb(var(--ig-primary-background)),
+        0 2px 6px rgb(0 0 0 / 20%);
+    transition:
+        background-color 120ms ease,
+        opacity 120ms ease;
+}
+
+.igd-profile-picture-export:hover {
+    background-color: rgb(var(--ig-secondary-background));
+}
+
+.igd-profile-picture-export:active {
+    opacity: 0.65;
+}
+
+.igd-profile-picture-export:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: -2px;
+}
+
+.igd-profile-picture-export > svg {
+    display: block;
+    flex: none;
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.25;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+}
+
+.igd-profile-picture-export::before {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    background: conic-gradient(
+        from -90deg,
+        currentColor var(--inline-download-progress, 0%),
+        rgba(var(--ig-primary-text), 0.25) 0
+    );
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
+    transition: opacity 120ms ease;
+}
+
+.igd-profile-picture-export.igd-inline-downloading::before {
+    opacity: 1;
+}
+
+.igd-profile-picture-export.igd-inline-downloading {
+    cursor: progress;
+}
+
+/* Failed export, every export button. Last, so it overrides each button's own color and ring. */
+.igd-inline-export-failed {
+    color: rgb(var(--ig-error-or-destructive, 237, 73, 86));
+}
+
+.igd-inline-export-failed::before {
+    opacity: 1;
+    background: currentColor;
 }

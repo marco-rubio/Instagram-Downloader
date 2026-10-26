@@ -13,9 +13,18 @@
     const UPSTREAM_BUTTON_CLASS = 'igd-post-inline-download';
     const UPSTREAM_REEL_BUTTON_CLASS = 'igd-post-inline-download-reel';
     const UPSTREAM_STORY_BUTTON_CLASS = 'igd-story-inline-download';
-    const OWN_BUTTONS = `.${BUTTON_CLASS}, .${STORY_BUTTON_CLASS}`;
+    const PROFILE_PICTURE_BUTTON_CLASS = 'igd-profile-picture-export';
+    const PROFILE_PICTURE_HOST_CLASS = 'igd-profile-picture-export-host';
+    const OWN_BUTTONS = [BUTTON_CLASS, STORY_BUTTON_CLASS, PROFILE_PICTURE_BUTTON_CLASS]
+        .map((className) => `.${className}`)
+        .join(', ');
     const BUTTON_LABEL = 'Export post as ZIP';
     const STORY_BUTTON_LABEL = 'Export story as ZIP';
+    const PROFILE_BUTTON_LABEL = 'Export profile as ZIP';
+    // First path segment of these routes is not a username.
+    const IG_RESERVED_PATHS = ['explore', 'reels', 'direct', 'accounts', 'stories', 'p', 'tv', 'reel'];
+    const IG_PROFILE_REGEX = /^\/([A-Za-z0-9._]+)(\/(reels|tagged|saved))?\/?$/;
+    const PROFILE_REQUEST_TIMEOUT = 2000;
 
     // Contract with the importer, bump on any incompatible change. Never reuse a number.
     const IGEXPORT_FORMAT_VERSION = 2;
@@ -24,9 +33,10 @@
     const KIND_ENTRY = 'igexport-kind';
     const PROVENANCE_ENTRY = 'igexport-provenance';
     const USER_ENTRY = 'igexport-user';
-    const EXPORT_KINDS = Object.freeze({ POST: 'post', STORY: 'story' });
+    const EXPORT_KINDS = Object.freeze({ POST: 'post', STORY: 'story', PROFILE: 'profile' });
     const POST_OBJECT_SOURCE = 'PolarisPostRootQuery';
     const STORY_OBJECT_SOURCE = 'PolarisStoriesV3ReelPageGalleryQuery';
+    const PROFILE_OBJECT_SOURCE = 'profile-page-data';
     const FAILED_STATE_DURATION = 3000;
     let updateQueued = false;
 
@@ -134,7 +144,7 @@
      * rawObject is saved unmodified as the .json entry, extraEntries go in as they are.
      */
     async function createExportZip(
-        { kind, source, exportedAt, data, rawObject, caption, profileUser, extraEntries = [] },
+        { kind, source, exportedAt, data, rawObject, caption, profileUser, extraEntries = [], requireProfilePicture },
         onProgress,
     ) {
         const archiveName = getArchiveFileName(data);
@@ -162,12 +172,18 @@
             onProgress((processed / data.media.length) * 90);
         }
 
-        files.push({ title: getUniqueArchiveEntryName(`${baseName}.txt`, usedNames), data: textBlob(caption) });
+        // No caption entry at all for kinds without one (profile), an empty one for posts and stories.
+        if (caption !== null) {
+            files.push({ title: getUniqueArchiveEntryName(`${baseName}.txt`, usedNames), data: textBlob(caption) });
+        }
         files.push({ title: getUniqueArchiveEntryName(`${baseName}.json`, usedNames), data: jsonBlob(rawObject) });
 
         const profilePicture = await fetchProfilePicture(profileUser);
         // The importer finds the picture by its .profile.<ext> suffix before matching slide ids (a single-media
         // post's picture also carries the post pk), so it is never renamed on a collision: skipped instead.
+        if (requireProfilePicture && !profilePicture) {
+            throw new Error('the full-size profile picture could not be downloaded');
+        }
         const profileName = profilePicture && `${baseName}.profile.${profilePicture.format}`;
         if (profileName && !usedNames.has(profileName.toLowerCase())) {
             usedNames.add(profileName.toLowerCase());
@@ -298,6 +314,56 @@
         );
     }
 
+    function getProfileUsernameFromPath(path = window.location.pathname) {
+        const profilePage = path.match(IG_PROFILE_REGEX);
+        if (!profilePage || IG_RESERVED_PATHS.includes(profilePage[1])) return '';
+        return profilePage[1];
+    }
+
+    // Ask igexport-profile-handler.js (MAIN world) for the user record the page already loaded.
+    function requestProfileUser(username) {
+        return new Promise((resolve, reject) => {
+            function handleResponse(event) {
+                const response = JSON.parse(event.detail);
+                if (response.username !== username) return;
+                clearTimeout(timeoutId);
+                window.removeEventListener('igexportProfileResponse', handleResponse);
+                resolve(response);
+            }
+            const timeoutId = setTimeout(() => {
+                window.removeEventListener('igexportProfileResponse', handleResponse);
+                reject(new Error('the page did not answer, reload the page'));
+            }, PROFILE_REQUEST_TIMEOUT);
+            window.addEventListener('igexportProfileResponse', handleResponse);
+            window.dispatchEvent(new CustomEvent('igexportProfileRequest', { detail: username }));
+        });
+    }
+
+    async function createProfileExport(onProgress) {
+        const username = getProfileUsernameFromPath();
+        if (!username) throw new Error('not on a profile page');
+        const { user, hasStoreRefs } = await requestProfileUser(username);
+        if (!user) throw new Error(`no full-size profile picture for ${username} in the page data`);
+        const userPk = String(user.pk ?? user.pk_id ?? user.id ?? '');
+        if (!userPk) throw new Error('the user record has no pk');
+        // TODO: if the record references other store records, ship them too (SPECS.md); not seen yet.
+        if (hasStoreRefs) throw new Error('the user record references other store records, not supported yet');
+        const exportedAt = new Date();
+        return createExportZip(
+            {
+                kind: EXPORT_KINDS.PROFILE,
+                source: PROFILE_OBJECT_SOURCE,
+                exportedAt,
+                data: { type: DOWNLOAD_FILENAME_SCOPES.POST, id: userPk, title: '', user: { username }, media: [] },
+                rawObject: user,
+                caption: null,
+                profileUser: user,
+                requireProfilePicture: true,
+            },
+            onProgress,
+        );
+    }
+
     function showFailedState(button, error, label) {
         button.classList.add(FAILED_CLASS);
         button.title = `Export failed: ${error.message || error}`;
@@ -365,6 +431,54 @@
         });
     }
 
+    function createProfileExportButton() {
+        return createExportButton({
+            className: PROFILE_PICTURE_BUTTON_CLASS,
+            label: PROFILE_BUTTON_LABEL,
+            iconSize: 20,
+            onClick: (target) => runExport(target, PROFILE_BUTTON_LABEL, createProfileExport),
+        });
+    }
+
+    /**
+     * The profile picture is the largest image in the header (its alt text is translated).
+     * Clicking it opens the account's stories, so the button goes next to its clickable element, not inside it.
+     */
+    function findProfilePicture() {
+        const header = document.querySelector('main header') || document.querySelector('header');
+        const image = [...(header?.querySelectorAll('img') ?? [])]
+            .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+            .filter(({ rect }) => rect.width >= 56 && rect.height >= 56)
+            .sort((first, second) => second.rect.width * second.rect.height - first.rect.width * first.rect.height)[0];
+        if (!image) return null;
+        const clickable = image.element.closest('a, button, [role="button"]') ?? image.element;
+        return clickable.parentElement ? { image: image.element, clickable } : null;
+    }
+
+    // Bottom-right corner of the picture, in the coordinates of the button's (positioned) parent.
+    function placeOnPictureCorner(button, picture) {
+        const host = picture.clickable.parentElement;
+        host.classList.add(PROFILE_PICTURE_HOST_CLASS);
+        const hostRect = host.getBoundingClientRect();
+        const imageRect = picture.image.getBoundingClientRect();
+        button.style.left = `${imageRect.right - hostRect.left - button.offsetWidth}px`;
+        button.style.top = `${imageRect.bottom - hostRect.top - button.offsetHeight}px`;
+    }
+
+    function syncProfileExportButtons(activeButtons) {
+        if (!getProfileUsernameFromPath()) return;
+        const picture = findProfilePicture();
+        if (picture) {
+            let pictureButton = picture.clickable.nextElementSibling;
+            if (!pictureButton?.classList.contains(PROFILE_PICTURE_BUTTON_CLASS)) {
+                pictureButton = createProfileExportButton();
+                picture.clickable.insertAdjacentElement('afterend', pictureButton);
+            }
+            placeOnPictureCorner(pictureButton, picture);
+            activeButtons.add(pictureButton);
+        }
+    }
+
     /**
      * Upstream already solves finding each post's action bar (feed, post page, reels, translated labels)
      * and the story toolbar, so follow its inline download buttons and keep ours right after them.
@@ -394,8 +508,15 @@
             activeButtons.add(button);
         }
 
+        syncProfileExportButtons(activeButtons);
+
         document.querySelectorAll(OWN_BUTTONS).forEach((button) => {
             if (!activeButtons.has(button)) button.remove();
+        });
+        document.querySelectorAll(`.${PROFILE_PICTURE_HOST_CLASS}`).forEach((host) => {
+            if (!host.querySelector(`:scope > .${PROFILE_PICTURE_BUTTON_CLASS}`)) {
+                host.classList.remove(PROFILE_PICTURE_HOST_CLASS);
+            }
         });
     }
 
@@ -423,5 +544,7 @@
     observePage();
     // Story URLs change from one story to the next without always touching the DOM we observe.
     navigation.addEventListener('navigate', queueUpdate);
+    // The profile picture button is positioned from the picture's layout, which a resize changes.
+    window.addEventListener('resize', queueUpdate);
     queueUpdate();
 })();

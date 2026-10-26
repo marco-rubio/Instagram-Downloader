@@ -50,7 +50,8 @@
                 "src/js/global/home-scroll-handler.js",
                 "src/js/global/stories-view-handler.js",
                 "src/js/global/post-modal-view-handler.js",
-                "src/js/global/reels-scroll-handler.js"
+                "src/js/global/reels-scroll-handler.js",
+                "src/js/global/igexport-profile-handler.js"
             ],
             "css": [],
             "world": "MAIN"
