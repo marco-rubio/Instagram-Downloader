@@ -157,3 +157,12 @@
     opacity: 1;
     background: currentColor;
 }
+
+/* Hide upstream's inline download buttons: only the export is used. They stay in the DOM because the export
+   buttons are placed right after them; upstream's download button style must stay "Modern" or "Both". */
+.igd-post-inline-download,
+.igd-post-inline-download-all,
+.igd-story-inline-download,
+.igd-story-inline-download-all {
+    display: none !important;
+}

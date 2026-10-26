@@ -18,6 +18,7 @@ The consumer of the export is the importer in `marco-rubio/instagram-archive`. C
 - Inline button with its own icon (archive box), placed right after upstream's inline post download button on every post: feed, post page, reels, single media and carousels.
 - Stories: placed right after upstream's story download button. Exports only the story item on screen. Not shown on highlights yet.
 - It attaches to upstream's button instead of finding the action bar itself, so upstream's files stay unchanged. It is shown wherever upstream shows its inline post buttons (download button style "Modern" or "Both").
+- Upstream's inline download buttons (post and story) are hidden with CSS in `src/style/igexport.css`; they stay in the DOM because the export buttons are placed after them. Upstream's download button style must stay "Modern" or "Both", "Legacy" removes them and the export buttons with them.
 - Shows upstream's progress ring while exporting. On failure it shows a red ring for 3 seconds, with the reason in its tooltip.
 - Code: `src/js/igexport.js`, `src/style/igexport.css`. The only upstream file touched is `manifest.json`.
 
