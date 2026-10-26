@@ -13,6 +13,13 @@ The consumer of the export is the importer in `marco-rubio/instagram-archive`. C
 - Keep the custom code self-contained, so syncing with upstream causes as few conflicts as possible and the export keeps working if upstream changes or drops similar features.
 - No custom naming logic: names come from upstream's filename token settings. Only the format marker is fixed in code.
 
+## Export button
+
+- Inline button with its own icon (archive box), placed right after upstream's inline post download button on every post: feed, post page, reels, single media and carousels.
+- It attaches to upstream's button instead of finding the action bar itself, so upstream's files stay unchanged. It is shown wherever upstream shows its inline post buttons (download button style "Modern" or "Both").
+- Shows upstream's progress ring while exporting. On failure it shows a red ring for 3 seconds, with the reason in its tooltip.
+- Code: `src/js/igexport.js`, `src/style/igexport.css`. The only upstream file touched is `manifest.json`.
+
 ## Post export ZIP, format version 2
 
 ### Layout
@@ -46,7 +53,7 @@ Entry `igexport-provenance`, JSON, pretty-printed with 2-space indentation:
 ```json
 {
   "exported_at": "2026-10-25T14:03:09.123Z",
-  "extension_version": "6.0.5",
+  "extension_version": "6.0.5-igexport.1",
   "upstream_version": "6.0.5",
   "source": "PolarisPostRootQuery"
 }
@@ -55,8 +62,8 @@ Entry `igexport-provenance`, JSON, pretty-printed with 2-space indentation:
 | Field               | Content                                                                                  |
 | ------------------- | ---------------------------------------------------------------------------------------- |
 | `exported_at`       | Export time, RFC 3339 in UTC with explicit offset (`Z`), from `Date.toISOString()`.      |
-| `extension_version` | This fork's build. Diagnostics only.                                                     |
-| `upstream_version`  | Upstream version this build is based on. Diagnostics only.                               |
+| `extension_version` | This fork's build, manifest `version_name`. Diagnostics only.                            |
+| `upstream_version`  | Upstream version this build is based on, manifest `version`. Diagnostics only.           |
 | `source`            | Where the post object came from: `PolarisPostRootQuery`. Diagnostics only.               |
 
 - `exported_at` is the only field the importer consumes: it orders captures of the same post (newest caption and counters win). Without it the importer falls back to the ZIP's file modification time, which copying or syncing can change.
@@ -141,7 +148,5 @@ username [shortcode].zip
 ## Open questions
 
 - [ ] Post object shape from GraphQL `PolarisPostRootQuery` vs the REST keys above. Upstream reads REST-style keys from it (`carousel_media`, `taken_at`, `pk`, `user.username`, `caption.text`) and the response key is `xdt_api__v1__media__shortcode__web_info`, which suggests the same v1 object. To be confirmed with a real export sent to the importer.
-- [ ] `extension_version` value: upstream's manifest `version` is the upstream version, so this fork's build needs its own identifier (e.g. manifest `version_name`).
-- [ ] Where the export button goes: separate inline button, upstream's ZIP button, or a floating button.
 - [ ] Stories and highlights export: needed, and with which entries.
 - [ ] Standalone profile picture button (v5: profile pages only, read from page data, named `username [userId_YYYYMMDDHHmmssZ].jpeg`): keep or drop.
