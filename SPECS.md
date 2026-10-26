@@ -53,7 +53,7 @@ Archive comment: `igexport v2`.
 - Entry `igexport-kind`, no extension. Contents: one bare ASCII word, nothing else (no newline): `post` or `story`.
 - Absent means `post` (the first v2 exports did not have it). Unknown word: the importer refuses.
 - Separate from the version: `igexport` says how to read the container, `igexport-kind` says what is inside. A new kind does not bump the version.
-- The importer currently refuses `story` with "this build imports posts only": a story has no shortcode, and how stories fit the archive is still to be decided there. The export ships stories anyway, the kind entry keeps them from being read as posts.
+- The importer currently refuses `story` with "this build imports posts only". Not missing information (story items have their own `code` = encoded `pk`, and `product_type` `story`), but missing schema: stories link as `/stories/<username>/<pk>/` and have an expiry, and get their own tables there, backlogged. The export ships stories anyway, the kind entry keeps them from being read as posts.
 
 ### Provenance
 
@@ -164,6 +164,7 @@ username_<storyId>.zip
 - Names come from upstream's **Stories** filename template (separate from Posts). `#id` is the story item's `pk` for the media, and also for the archive and sidecars: the export passes the story item, not the reel, as what is being named. Upstream's own story ZIP uses the reel id (the user's pk) there, which would give every story of one account the same name.
 - `.json`: the raw story item (one element of the reel's `items[]`), unmodified. Never trimmed or wrapped.
 - `igexport-user`: the reel's `user` object, unmodified, JSON. Only when the story item's `user` has no `username` (one source per fact). Story items carry a stub `user` with `pk` but no `username` and no picture, so in practice it is always added. The importer needs its `pk` (or `pk_id`) and `username`.
+- When `igexport-user` is present the importer reads the account from it as a whole. If the item's `user.pk` is also present and disagrees with it, the importer refuses: identity assembled from two contradicting entries is never guessed. Both are the author's account pk, so this should not happen.
 - Profile picture from the first of the item's `user` and the reel's `user` that has a picture URL.
 
 ## Format version 1 (v5, branch `my-branch-v5`)
@@ -184,6 +185,7 @@ username [shortcode].zip
 
 ## Open questions
 
-- [ ] How stories fit the archive (importer side, Marco's decision). First story sample: the item has its own `code`, equal to the encoded `pk` as for posts; `taken_at` and `expiring_at` (+24 h) in seconds; `video_duration` present (unlike posts); `product_type` `story`; stub `user` (pk only); no reshared post (`story_feed_media` null); link and music stickers present.
+- [ ] Story with a reshared post (`story_feed_media` / `reshared_story_media_author` set): send a sample to the importer when one appears.
+- [ ] How stories fit the archive: own tables on the importer side, backlogged. First story sample: the item has its own `code`, equal to the encoded `pk` as for posts; `taken_at` and `expiring_at` (+24 h) in seconds; `video_duration` present (unlike posts); `product_type` `story`; stub `user` (pk only); no reshared post (`story_feed_media` null); link and music stickers present.
 - [ ] Highlights export: later. Upstream's highlight buttons do not show consistently yet.
 - [ ] Standalone profile picture button (v5: profile pages only, read from page data, named `username [userId_YYYYMMDDHHmmssZ].jpeg`): keep or drop.
