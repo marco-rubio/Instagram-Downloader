@@ -43,6 +43,13 @@
     // Shift+E. Free on Instagram (Shift+E and E tested on feed, post overlay and stories) and in upstream
     // (Shift+D, Shift+S, Shift+C).
     const EXPORT_SHORTCUT_KEY = 'E';
+    // Shift+B toggles Instagram's save (bookmark) on the same post, by clicking Instagram's own button.
+    const SAVE_SHORTCUT_KEY = 'B';
+    // The save button's label is translated: it is found by position (first icon after share) and only
+    // accepted with one of its two known shapes, so a changed layout clicks nothing.
+    const SHARE_ICON_PATH = 'M13.973 20.046';
+    const SAVED_ICON_PATH = 'M20 22a.999.999 0 0 1-.687-.273L12 14.81';
+    const UNSAVED_ICON_POINTS = '20 21 12 13.44 4 21 4 3 20 3 20 21';
     const NOTICE_CLASS = 'igd-export-notice';
     // How long a post or story page may go without upstream's button before it is reported as missing.
     const UPSTREAM_BUTTON_TIMEOUT = 8000;
@@ -598,12 +605,9 @@
         }, UPSTREAM_BUTTON_TIMEOUT);
     }
 
-    /**
-     * Story page: the story. Post open in an overlay: that post. Otherwise the post covering
-     * the middle of the screen (or nearest to it), then the profile.
-     */
-    function findShortcutTarget() {
-        if (getCurrentStoryFromPath()) return document.querySelector(`.${STORY_BUTTON_CLASS}`);
+    // Post open in an overlay: that post's export button. Otherwise the post covering the middle of the screen
+    // (or nearest to it).
+    function findPostShortcutTarget() {
         const inDialog = [...document.querySelectorAll('[role="dialog"]')]
             .map((dialog) => dialog.querySelector(`.${BUTTON_CLASS}`))
             .find(Boolean);
@@ -614,20 +618,56 @@
             .filter(({ rect }) => rect.height && rect.bottom > 0 && rect.top < window.innerHeight)
             .map(({ button, rect }) => ({ button, distance: Math.max(0, rect.top - middle, middle - rect.bottom) }))
             .sort((first, second) => first.distance - second.distance)[0]?.button;
-        return post ?? document.querySelector(`.${PROFILE_PICTURE_BUTTON_CLASS}`);
+    }
+
+    // Story page: the story. Otherwise the post, then the profile.
+    function findExportShortcutTarget() {
+        if (getCurrentStoryFromPath()) return document.querySelector(`.${STORY_BUTTON_CLASS}`);
+        return findPostShortcutTarget() ?? document.querySelector(`.${PROFILE_PICTURE_BUTTON_CLASS}`);
+    }
+
+    // Instagram's save button in the action bar the export button sits in: the first icon after share.
+    function findSaveButton(exportButton) {
+        let actionBar = exportButton;
+        while (actionBar && !actionBar.querySelector(`svg path[d^="${SHARE_ICON_PATH}"]`)) {
+            actionBar = actionBar.parentElement;
+        }
+        if (!actionBar) return null;
+        const icons = [...actionBar.querySelectorAll('svg[aria-label]')];
+        const lastShare = icons.findLastIndex((svg) => svg.querySelector(`path[d^="${SHARE_ICON_PATH}"]`));
+        const icon = lastShare === -1 ? null : icons[lastShare + 1];
+        const isSaveIcon =
+            icon?.querySelector(`path[d^="${SAVED_ICON_PATH}"]`) ||
+            icon?.querySelector(`polygon[points="${UNSAVED_ICON_POINTS}"]`);
+        return isSaveIcon ? icon.closest('[role="button"], button') : null;
+    }
+
+    function toggleSave(exportButton) {
+        const saveButton = findSaveButton(exportButton);
+        if (saveButton) saveButton.click();
+        else showFailedState(exportButton, new Error("Instagram's save button was not found"), BUTTON_LABEL);
     }
 
     // Same typing guards as upstream's shortcuts in main.js, plus contenteditable.
     function handleShortcut(event) {
-        if (event.key !== EXPORT_SHORTCUT_KEY || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+        if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+        if (event.key !== EXPORT_SHORTCUT_KEY && event.key !== SAVE_SHORTCUT_KEY) return;
         if (window.location.pathname.startsWith('/direct')) return;
         const target = event.target;
         if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
         if (target.role === 'textbox' || target.isContentEditable) return;
-        const button = findShortcutTarget();
-        if (!button) return;
+        if (event.key === EXPORT_SHORTCUT_KEY) {
+            const button = findExportShortcutTarget();
+            if (!button) return;
+            event.preventDefault();
+            button.click();
+            return;
+        }
+        // Stories cannot be saved.
+        const exportButton = getCurrentStoryFromPath() ? null : findPostShortcutTarget();
+        if (!exportButton) return;
         event.preventDefault();
-        button.click();
+        toggleSave(exportButton);
     }
 
     function queueUpdate() {
