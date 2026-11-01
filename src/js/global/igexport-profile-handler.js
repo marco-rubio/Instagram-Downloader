@@ -1,5 +1,5 @@
 /**
- * Profile export, page side (MAIN world), see SPECS.md "Profile export ZIP".
+ * Profile export, page side (MAIN world), see openspec/specs/profile-export.
  *
  * The profile page already loaded the user record (with the full-size picture) to render its header:
  * find it in the React tree so the export makes no API request. Only an object whose username matches

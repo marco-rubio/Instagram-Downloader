@@ -1,4 +1,4 @@
-/* Post export button, see SPECS.md. Mirrors upstream's .igd-post-inline-download look. */
+/* Post export button, see openspec/specs/export-controls. Mirrors upstream's .igd-post-inline-download look. */
 .igd-post-inline-export {
     position: relative;
     display: inline-flex;

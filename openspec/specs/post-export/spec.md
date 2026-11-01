@@ -7,6 +7,21 @@ container described by `export-archive-format`: feed posts, post pages, reels,
 single media and carousels. The post object comes from upstream's
 `getPostPhotos()` (GraphQL `PolarisPostRootQuery`), one request per export.
 
+Verified on real exports against their v1 REST counterparts:
+`PolarisPostRootQuery` returns the same post object with REST spellings and a
+smaller field selection (81 top-level keys against 115-135). Every field the
+importer requires is present, and `original_width` / `original_height` are on
+the post and on each `carousel_media` entry. Missing are `video_duration`
+(derived by the importer from `video_dash_manifest`, matching within 2 ms on
+407 of 416 v1 videos), `play_count`, `ig_play_count` and other fields outside the
+contract. GraphQL-style renames (`edge_sidecar_to_children`, `dimensions`,
+`owner.id`, `shortcode`, `taken_at_timestamp`) would import as empty values
+without an error, which is why the object is shipped raw and never reshaped.
+
+With the resolution cookies, a photo slide the post object states as 2048x2048
+arrives at 2048x2048; without them, Instagram served a 1080x1080 candidate.
+Videos are identical either way.
+
 ## Requirements
 
 ### Requirement: One request fetches the post object

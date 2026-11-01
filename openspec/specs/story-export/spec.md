@@ -4,7 +4,7 @@
 
 What a story export (`igexport-kind` `story`) captures: the one story item on
 screen, never the whole reel, in the container described by
-`export-archive-format`. Highlights are not supported.
+`export-archive-format`.
 
 ```
 username_<storyId>.zip
@@ -16,6 +16,27 @@ username_<storyId>.zip
 |-- username_<storyId>.txt    caption text, usually empty
 `-- username_<storyId>.json   the raw story item
 ```
+
+What a story item carries, from the first sample: its own `code` (the encoded
+`pk`, as for posts), `taken_at` and `expiring_at` (+24 h) in seconds,
+`video_duration` (unlike posts), `product_type` `story`, a stub `user` (pk
+only), no reshared post (`story_feed_media` null), and link and music stickers.
+How stories fit the archive (their links are `/stories/<username>/<pk>/` and they
+expire) is still open on the importer's side.
+
+Highlights are not supported: dropped as seldom used with too many moving parts.
+Findings from the attempt, for a future one:
+
+- The highlight URL (`/stories/highlights/<highlightId>/`) never names the item
+  on screen, so the item has to be matched from the page.
+- Videos play from `blob:` URLs without poster: no id in the URL, and none in
+  the player's React props (checked 80 levels for `pk`, `id`, `media_id`,
+  `mediaId`).
+- Upstream's highlight query (`getHighlightStory()`) returned all items of a
+  one-item highlight.
+- Upstream's own highlight buttons show inconsistently and are hidden by
+  `igexport.css` together with its story buttons, so the extension offers no
+  highlight download at all.
 
 ## Requirements
 

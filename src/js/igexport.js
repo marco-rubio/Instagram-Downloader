@@ -1,5 +1,5 @@
 /**
- * Post and story export ZIP for the instagram-archive importer, see SPECS.md.
+ * Post, story and profile export ZIP for the instagram-archive importer, see openspec/specs.
  *
  * Self-contained on purpose: it attaches next to upstream's inline download buttons
  * and reuses upstream's queries, media download and filename settings,
@@ -175,7 +175,7 @@
     }
 
     /**
-     * Builds the ZIP shared by every kind, see SPECS.md for the layout.
+     * Builds the ZIP shared by every kind, see openspec/specs/export-archive-format.
      * rawObject is saved unmodified as the .json entry, extraEntries go in as they are.
      */
     async function createExportZip(
@@ -383,7 +383,7 @@
         if (!user) throw new Error(`no full-size profile picture for ${username} in the page data`);
         const userPk = String(user.pk ?? user.pk_id ?? user.id ?? '');
         if (!userPk) throw new Error('the user record has no pk');
-        // TODO: if the record references other store records, ship them too (SPECS.md); not seen yet.
+        // TODO: if the record references other store records, ship them too (openspec/specs/profile-export); not seen yet.
         if (hasStoreRefs) throw new Error('the user record references other store records, not supported yet');
         const exportedAt = new Date();
         return createExportZip(

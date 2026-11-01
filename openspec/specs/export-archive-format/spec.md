@@ -21,6 +21,20 @@ username_<postId>_<date>.zip
 `-- username_<postId>_<date>.profile.<ext>   profile picture
 ```
 
+Format version 1 is the v5 export (branch `my-branch-v5`), still accepted by
+the importer and recognised by the missing marker:
+
+```
+username [shortcode].zip
+|-- username [shortcode].jpeg | .mp4          single media
+|-- username [shortcode] - 1.jpeg, - 2.mp4    carousel media, 1-based position
+|-- username [shortcode].txt
+`-- username [shortcode].json
+```
+
+In v1, images are always `.jpeg` and videos `.mp4`, the post object comes from
+REST `/api/v1/media/{id}/info/`, and there is no profile picture.
+
 ## Requirements
 
 ### Requirement: The format marker names the container version
