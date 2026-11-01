@@ -37,8 +37,8 @@ The capture time SHALL NOT be sent: the app reads it from the ZIP's
 The first attempt SHALL send no `X-Igexport-Budget` header. A `413` whose JSON
 `refusal` is `too-large` SHALL be retried with the same Blob and
 `X-Igexport-Budget: 268435456`, then `536870912`: three attempts at most. A `413`
-at 536870912, or whose `max` is not above the budget already asked for, SHALL be
-final. When the ZIP is larger than the cached `max` from `/health`, the upload
+SHALL be final when there is no next step, or when the next step or the ZIP's
+size exceeds the `max` it states. When the ZIP is larger than the cached `max` from `/health`, the upload
 SHALL be skipped and the ZIP downloaded with a notice that it is too large for
 the app.
 
@@ -75,7 +75,11 @@ copy. A `503` (`busy` or `no-library`) SHALL fall back the same way, without ret
 
 ### Requirement: Success completes the button, a duplicate is reported
 
-A 2xx answer SHALL complete the progress ring, and no file SHALL be saved. When
+A 2xx answer SHALL complete the progress ring, and no file SHALL be saved. Every
+successful export, sent or downloaded, SHALL leave its button green with a full
+ring and the tooltip "Exported: sent to the archive app" or "Exported:
+downloaded", until the button is re-rendered or exported again; nothing is stored,
+so a re-rendered post starts plain. When
 its JSON says `duplicate: true`, the notice SHALL show its `message` (the archive
 already held the capture); otherwise no notice is shown.
 

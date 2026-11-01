@@ -10,6 +10,8 @@
     const REEL_BUTTON_CLASS = 'igd-post-inline-export-reel';
     const STORY_BUTTON_CLASS = 'igd-story-inline-export';
     const FAILED_CLASS = 'igd-inline-export-failed';
+    // Kept while the button exists: a re-rendered post starts plain again, nothing is stored.
+    const DONE_CLASS = 'igd-inline-export-done';
     const UPSTREAM_BUTTON_CLASS = 'igd-post-inline-download';
     const UPSTREAM_REEL_BUTTON_CLASS = 'igd-post-inline-download-reel';
     const UPSTREAM_STORY_BUTTON_CLASS = 'igd-story-inline-download';
@@ -408,15 +410,42 @@
         }, FAILED_STATE_DURATION);
     }
 
+    /**
+     * Sent to the archive app when a token is saved (igexport-push.js), downloaded otherwise.
+     * A failed send is not a failed export: the ZIP is downloaded and the notice says why.
+     * Resolves with where the ZIP went: 'sent' or 'downloaded'.
+     */
+    async function deliverExport(button, blob, fileName) {
+        // Unreadable settings (e.g. the extension was reloaded under the tab) must not lose the ZIP.
+        const settings = await igexportPush.getSettings().catch((error) => console.log(error));
+        if (settings) {
+            try {
+                const result = await igexportPush.push(settings, blob, fileName, (percent) =>
+                    setInlineDownloadProgress(button, percent),
+                );
+                setInlineDownloadProgress(button, 100);
+                if (result.duplicate) showNotice(null, result.message || 'The archive already held this capture.');
+                return 'sent';
+            } catch (error) {
+                console.log(error);
+                showNotice(null, `${error.message || error} The ZIP was downloaded instead.`);
+            }
+        }
+        setInlineDownloadProgress(button, 100);
+        saveFile(blob, fileName);
+        return 'downloaded';
+    }
+
     async function runExport(button, label, createExport) {
         if (button.disabled) return;
-        button.classList.remove(FAILED_CLASS);
+        button.classList.remove(FAILED_CLASS, DONE_CLASS);
         button.title = label;
         setInlineDownloadProgress(button, 0);
         try {
             const { blob, fileName } = await createExport((percent) => setInlineDownloadProgress(button, percent));
-            setInlineDownloadProgress(button, 100);
-            saveFile(blob, fileName);
+            const delivery = await deliverExport(button, blob, fileName);
+            button.classList.add(DONE_CLASS);
+            button.title = delivery === 'sent' ? 'Exported: sent to the archive app' : 'Exported: downloaded';
         } catch (error) {
             console.log(error);
             showFailedState(button, error, label);
@@ -556,10 +585,11 @@
         });
     }
 
-    // Once per page load and message, until dismissed.
+    // With a key, once per page load until dismissed; without one, every time. A new notice replaces the shown one.
     function showNotice(key, message) {
-        if (shownNotices.has(key)) return;
-        shownNotices.add(key);
+        if (key && shownNotices.has(key)) return;
+        if (key) shownNotices.add(key);
+        document.querySelector(`.${NOTICE_CLASS}`)?.remove();
         const notice = document.createElement('div');
         notice.className = NOTICE_CLASS;
         notice.setAttribute('role', 'status');

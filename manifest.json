@@ -2,7 +2,7 @@
     "name": "Instagram Downloader",
     "description": "Download Photos and Videos from Instagram Post, Reels, TV, Stories",
     "version": "6.0.5",
-    "version_name": "6.0.5-igexport.1",
+    "version_name": "6.0.5-igexport.2",
     "manifest_version": 3,
     "icons": {
         "16": "icons/icon16.png",
@@ -10,7 +10,8 @@
         "48": "icons/icon48.png",
         "128": "icons/icon128.png"
     },
-    "host_permissions": ["https://www.instagram.com/*", "https://*.fbcdn.net/*", "https://*.cdninstagram.com/*"],
+    "permissions": ["storage"],
+    "host_permissions": ["https://www.instagram.com/*", "https://*.fbcdn.net/*", "https://*.cdninstagram.com/*", "http://127.0.0.1/*"],
     "action": {
         "default_icon": "icons/icon128.png"
     },
@@ -39,6 +40,7 @@
                 "src/js/story.js",
                 "src/js/zip.js",
                 "lib/js.cookie.min.js",
+                "src/js/igexport-push.js",
                 "src/js/igexport.js"
             ],
             "css": ["src/style/igexport.css"]

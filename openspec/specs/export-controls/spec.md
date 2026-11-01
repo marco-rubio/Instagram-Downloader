@@ -5,9 +5,7 @@
 The export buttons on Instagram's pages: where each one goes, how it reports
 progress and failure, how upstream's own download buttons are hidden, and how
 an attachment failure is reported. Keyboard access is in `keyboard-shortcuts`.
-
 ## Requirements
-
 ### Requirement: Post and story buttons follow upstream's inline buttons
 
 The post export button SHALL be placed right after each of upstream's inline
@@ -67,14 +65,22 @@ changed to hide them.
 
 While exporting, a button SHALL show upstream's progress ring
 (`setInlineDownloadProgress`) and SHALL ignore clicks. On success the ZIP SHALL
-be saved through upstream's `saveFile`. On failure the button SHALL show a red
-ring for 3 seconds with `Export failed: <reason>` as its tooltip, then return
-to its label; the error is also logged to the console.
+be pushed to the archive app when an endpoint is configured (`archive-push`), and
+otherwise saved through upstream's `saveFile`. On failure the button SHALL show a
+red ring for 3 seconds with `Export failed: <reason>` as its tooltip, then return
+to its label; the error is also logged to the console. A failed push is not an
+export failure: the ZIP is downloaded and the reason shown as a notice.
 
 #### Scenario: An export fails
 
 - **WHEN** an export throws
 - **THEN** the button turns red for 3 seconds and its tooltip names the reason
+
+#### Scenario: A push fails
+
+- **WHEN** the ZIP was built but the app refused it
+- **THEN** the button does not turn red, the ZIP is downloaded and a notice
+  gives the app's reason
 
 ### Requirement: An attachment failure is reported once per page load
 
@@ -96,3 +102,4 @@ purpose and is not reported.
 
 - **WHEN** the download button style is "Legacy"
 - **THEN** no notice appears
+

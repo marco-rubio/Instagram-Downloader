@@ -280,6 +280,130 @@
     background-color: rgb(255 255 255 / 12%);
 }
 
+/* Archive export settings, see igexport-push.js. The sidebar item and the dialog reuse upstream's inner
+   classes for their look; the outer ones are our own because upstream looks its own up by class. */
+.igd-export-settings-nav-item {
+    display: flex;
+    align-items: center;
+    flex: 0 0 56px;
+    width: 100%;
+    height: 56px;
+    overflow: hidden;
+}
+
+.igd-export-settings-modal[hidden] {
+    display: none;
+}
+
+.igd-export-settings-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483646;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgb(0 0 0 / 58%);
+    backdrop-filter: blur(3px);
+    font-family: var(--font-family-system);
+}
+
+.igd-export-settings-modal .igd-settings-dialog {
+    width: min(520px, 100%);
+}
+
+.igd-export-settings-field {
+    display: grid;
+    gap: 6px;
+    margin-top: 16px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.igd-export-settings-field input {
+    width: 100%;
+    padding: 10px 12px;
+    color: rgb(var(--ig-primary-text));
+    background: rgb(var(--ig-secondary-background));
+    border: 1px solid rgb(var(--ig-separator));
+    border-radius: 8px;
+    box-sizing: border-box;
+    font:
+        14px/18px ui-monospace,
+        SFMono-Regular,
+        Consolas,
+        monospace;
+}
+
+.igd-export-settings-field input:focus-visible {
+    outline: 2px solid rgb(var(--ig-colors-button-primary-background));
+    outline-offset: -1px;
+}
+
+.igd-export-settings-secret {
+    display: flex;
+    gap: 8px;
+}
+
+.igd-export-settings-secret input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.igd-export-settings-reveal {
+    flex: none;
+    padding: 0 14px;
+    color: rgb(var(--ig-primary-text));
+    background: rgb(var(--ig-secondary-background));
+    border: 1px solid rgb(var(--ig-separator));
+    border-radius: 8px;
+    cursor: pointer;
+    font: 600 13px/18px var(--font-family-system);
+}
+
+.igd-export-settings-reveal[hidden] {
+    display: none;
+}
+
+.igd-export-settings-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 18px;
+}
+
+.igd-export-settings-actions button {
+    padding: 8px 16px;
+    color: rgb(var(--ig-primary-text));
+    background: rgb(var(--ig-secondary-background));
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+    font: 600 14px/18px var(--font-family-system);
+}
+
+.igd-export-settings-actions .igd-export-settings-save {
+    color: #fff;
+    background: rgb(var(--ig-colors-button-primary-background, 0, 149, 246));
+}
+
+.igd-export-settings-actions button:hover {
+    filter: brightness(0.92);
+}
+
+.igd-export-settings-status:empty {
+    display: none;
+}
+
+/* Exported, every export button: green with a full ring until the button is re-rendered. */
+.igd-inline-export-done {
+    color: rgb(88 195 34);
+}
+
+.igd-inline-export-done::before {
+    opacity: 1;
+    background: currentColor;
+}
+
 /* Failed export, every export button. Last, so it overrides each button's own color and ring. */
 .igd-inline-export-failed {
     color: rgb(var(--ig-error-or-destructive, 237, 73, 86));
