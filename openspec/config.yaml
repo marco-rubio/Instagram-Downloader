@@ -1,0 +1,16 @@
+schema: spec-driven
+
+context: |
+  Fork of HOAIAN2/Instagram-Downloader (upstream, v6) for Chrome/Edge/Firefox, MV3.
+  These specs cover only this fork's own functionality (branch my-branch), never upstream's.
+  Plain JavaScript content scripts, no build step:
+    - src/js/igexport.js (ISOLATED world, loaded after upstream's scripts in the same
+      content_scripts entry, so it can call upstream's globals)
+    - src/js/global/igexport-profile-handler.js (MAIN world, reads the page's React data)
+    - src/style/igexport.css
+  The only upstream file touched is manifest.json. Upstream code is reused, never edited,
+  so upstream syncs stay conflict-free.
+  The consumer of every export is the importer in marco-rubio/instagram-archive; any
+  contract change is agreed with that project first.
+  Files are ASCII with LF line endings. Examples never use real handles, shortcodes,
+  post ids, captions or counters.
