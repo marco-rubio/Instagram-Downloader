@@ -8,9 +8,7 @@ was agreed with the instagram-archive project (`docs/V5-PLAN.md` there, "The
 extension pushes the zip"); the design and its reasons are in
 `openspec/changes/archive/2026-11-01-push-to-archive-app/design.md`. Code:
 `src/js/igexport-push.js`.
-
 ## Requirements
-
 ### Requirement: An export is pushed only when an endpoint is configured
 
 A finished export ZIP SHALL be sent, when the push settings hold an endpoint URL
@@ -42,26 +40,6 @@ The capture time SHALL NOT be sent: the app reads it from the ZIP's
 - **WHEN** a post ZIP is pushed
 - **THEN** the request carries the bearer token, `application/zip` and the
   percent-encoded archive name, and nothing about the capture time
-
-### Requirement: The budget ladder sizes the app's reservation
-
-The first attempt SHALL send no `X-Igexport-Budget` header. A `413` whose JSON
-`refusal` is `too-large` SHALL be retried with the same Blob and
-`X-Igexport-Budget: 268435456`, then `536870912`: three attempts at most. A `413`
-SHALL be final when there is no next step, or when the next step or the ZIP's
-size exceeds the `max` it states. When the ZIP is larger than the cached `max` from `/health`, the upload
-SHALL be skipped and the ZIP downloaded with a notice that it is too large for
-the app.
-
-#### Scenario: A 100 MiB ZIP
-
-- **WHEN** the first attempt is refused with `too-large`
-- **THEN** the second attempt asks for 268435456 and is accepted
-
-#### Scenario: A ZIP above the ceiling
-
-- **WHEN** the ZIP is larger than the cached `max`
-- **THEN** no upload is attempted and the ZIP is downloaded with a notice
 
 ### Requirement: Any failed push falls back to a download
 
@@ -101,23 +79,22 @@ already held the capture); otherwise no notice is shown.
 
 ### Requirement: The progress ring tracks the upload and never finishes early
 
-During a push the ring SHALL follow building the ZIP, then the upload's sent bytes
-up to 95%, and SHALL complete only on a 2xx. A refused attempt of the ladder SHALL
-reset the ring to 0 for the next attempt.
+During a push the ring SHALL follow building the ZIP, then restart at 0 and
+follow the upload's sent bytes up to 95%, and SHALL complete only on a 2xx.
 
-#### Scenario: The first attempt is refused
+#### Scenario: The upload is refused
 
-- **WHEN** an attempt is refused with `too-large`
-- **THEN** the ring restarts from 0 instead of completing
+- **WHEN** the app refuses the upload
+- **THEN** the ring does not complete on the refusal; the ZIP is downloaded and
+  only then does the ring complete
 
 ### Requirement: The health check is cached for the session
 
 `GET <endpoint>/health`, with the token, SHALL be called at most once per page
-session before the first push, and by "Test connection". Its JSON `max`,
-`default` and `library` SHALL be cached; a `413` body's `max` SHALL replace the
-cached `max`.
+session before the first push, and by "Test connection". Its JSON `max` and
+`library` SHALL be cached; a `413` body's `max` SHALL replace the cached `max`.
 
-#### Scenario: The ceiling was lowered
+#### Scenario: The limit was lowered
 
 - **WHEN** a push is refused with a `max` lower than the cached one
 - **THEN** the cached `max` takes the new value, and that export is downloaded
@@ -141,4 +118,21 @@ connection works.
 
 - **WHEN** the token is saved
 - **THEN** it is not in the page's `localStorage` or any page-visible storage
+
+### Requirement: One upload per export, within the app's limit
+
+Each push SHALL be a single `POST /ingest`, without `X-Igexport-Budget` and
+without retries. When the ZIP is larger than the cached `max` from `/health`, the
+upload SHALL be skipped and the ZIP downloaded with a notice that it is too large
+for the app. A `413` SHALL be final: the ZIP is downloaded with the app's message.
+
+#### Scenario: A 100 MiB ZIP
+
+- **WHEN** a 100 MiB ZIP is pushed and the app's `max` is 364904448
+- **THEN** one request is sent, with no budget header, and it is accepted
+
+#### Scenario: A ZIP above the limit
+
+- **WHEN** the ZIP is larger than the cached `max`
+- **THEN** no upload is attempted and the ZIP is downloaded with a notice
 

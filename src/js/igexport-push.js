@@ -10,8 +10,6 @@ const igexportPush = Object.freeze(
     (() => {
         const STORAGE_KEY = 'igexportPush';
         const DEFAULT_ENDPOINT = 'http://127.0.0.1:47821';
-        // Marco's budget ladder: no header first (the app's default), then these, on a "too-large" refusal.
-        const BUDGET_STEPS = [null, 268435456, 536870912];
         // The app answers only once the capture is imported, which takes a while for a large video.
         const INGEST_TIMEOUT = 10 * 60 * 1000;
         const HEALTH_TIMEOUT = 5000;
@@ -94,7 +92,7 @@ const igexportPush = Object.freeze(
                 timeout: HEALTH_TIMEOUT,
             });
             if (status !== 200 || !json) throw refusalError(status, json);
-            return { max: Number(json.max) || 0, default: Number(json.default) || 0, library: json.library !== false };
+            return { max: Number(json.max) || 0, library: json.library !== false };
         }
 
         // Once per page session: max only changes when Marco edits the app's settings, and a 413 corrects it.
@@ -109,7 +107,7 @@ const igexportPush = Object.freeze(
 
         /**
          * Resolves with { duplicate, message } once the app has imported the capture; rejects with the reason
-         * to show otherwise. onProgress gets 0-95 per attempt and restarts at 0 on a refused attempt.
+         * to show otherwise. One upload, no retries: the app takes anything up to its max (onProgress 0-95).
          */
         async function push(settings, blob, fileName, onProgress) {
             const { max } = await getHealth(settings);
@@ -118,34 +116,22 @@ const igexportPush = Object.freeze(
                     `This ZIP is too large for the archive app (${formatMiB(blob.size)}, limit ${formatMiB(max)}).`,
                 );
             }
-            for (let step = 0; step < BUDGET_STEPS.length; step++) {
-                onProgress(0);
-                const headers = {
-                    'Content-Type': 'application/zip',
-                    'X-Igexport-Filename': encodeURIComponent(fileName),
-                };
-                if (BUDGET_STEPS[step]) headers['X-Igexport-Budget'] = String(BUDGET_STEPS[step]);
-                const { status, json } = await sendRequest({
-                    method: 'POST',
-                    url: endpointUrl(settings, '/ingest'),
-                    token: settings.token,
-                    headers,
-                    body: blob,
-                    timeout: INGEST_TIMEOUT,
-                    onUploadProgress: (fraction) => onProgress(fraction * 95),
-                });
-                if (status >= 200 && status < 300) {
-                    return { duplicate: json?.duplicate === true, message: String(json?.message ?? '').trim() };
-                }
-                if (status === 413 && json?.refusal === 'too-large') {
-                    const appMax = Number(json.max) || 0;
-                    if (appMax && health) health.max = appMax;
-                    const next = BUDGET_STEPS[step + 1];
-                    if (next && (!appMax || (next <= appMax && blob.size <= appMax))) continue;
-                }
-                throw refusalError(status, json);
+            onProgress(0);
+            const { status, json } = await sendRequest({
+                method: 'POST',
+                url: endpointUrl(settings, '/ingest'),
+                token: settings.token,
+                headers: { 'Content-Type': 'application/zip', 'X-Igexport-Filename': encodeURIComponent(fileName) },
+                body: blob,
+                timeout: INGEST_TIMEOUT,
+                onUploadProgress: (fraction) => onProgress(fraction * 95),
+            });
+            if (status >= 200 && status < 300) {
+                return { duplicate: json?.duplicate === true, message: String(json?.message ?? '').trim() };
             }
-            throw new PushError('The archive app refused every budget.');
+            // A 413 is final; its max corrects the cached one, which only changes when the app's settings do.
+            if (status === 413 && Number(json?.max) > 0 && health) health.max = Number(json.max);
+            throw refusalError(status, json);
         }
 
         // A changed endpoint or token, from this tab or another, invalidates what /health said.
