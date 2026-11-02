@@ -311,6 +311,64 @@
     width: min(520px, 100%);
 }
 
+.igd-export-settings-switch {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* Over the track, invisible: keeps the native checkbox's keyboard and screen reader behaviour. */
+.igd-export-settings-switch input {
+    position: absolute;
+    width: 40px;
+    height: 24px;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.igd-export-settings-switch-track {
+    position: relative;
+    flex: none;
+    width: 40px;
+    height: 24px;
+    background: rgb(var(--ig-separator));
+    border-radius: 12px;
+    pointer-events: none;
+    transition: background-color 120ms ease;
+}
+
+.igd-export-settings-switch-track::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
+    transition: transform 120ms ease;
+}
+
+.igd-export-settings-switch input:checked + .igd-export-settings-switch-track {
+    background: rgb(var(--ig-colors-button-primary-background, 0, 149, 246));
+}
+
+.igd-export-settings-switch input:checked + .igd-export-settings-switch-track::after {
+    transform: translateX(16px);
+}
+
+.igd-export-settings-switch input:focus-visible + .igd-export-settings-switch-track {
+    outline: 2px solid rgb(var(--ig-colors-button-primary-background, 0, 149, 246));
+    outline-offset: 2px;
+}
+
 .igd-export-settings-field {
     display: grid;
     gap: 6px;

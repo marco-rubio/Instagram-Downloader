@@ -30,6 +30,8 @@ const igexportPush = Object.freeze(
             return {
                 endpoint: String(value?.endpoint || DEFAULT_ENDPOINT).trim(),
                 token: String(value?.token || '').trim(),
+                // On unless switched off: settings saved before the switch existed keep pushing.
+                enabled: value?.enabled !== false,
             };
         }
 
@@ -38,10 +40,10 @@ const igexportPush = Object.freeze(
             return normalizeSettings(stored[STORAGE_KEY]);
         }
 
-        // Pushing is on only with a token saved: no token means plain downloads, as before.
+        // Pushing is on only when switched on with a token saved; otherwise plain downloads, as before.
         async function getSettings() {
             const settings = await readSettings();
-            return settings.endpoint && settings.token ? settings : null;
+            return settings.enabled && settings.endpoint && settings.token ? settings : null;
         }
 
         function endpointUrl(settings, path) {
@@ -163,7 +165,12 @@ const igexportPush = Object.freeze(
                     <form class="igd-settings-content igd-export-settings-form">
                         <section class="igd-settings-section">
                             <h3>Archive app</h3>
-                            <p class="igd-settings-help">Leave the token empty to download exports as files. A failed send always falls back to a download.</p>
+                            <p class="igd-settings-help">Switched off, or with no token, exports download as files. A failed send always falls back to a download.</p>
+                            <label class="igd-export-settings-switch">
+                                <input name="enabled" type="checkbox" role="switch">
+                                <span class="igd-export-settings-switch-track"></span>
+                                <span>Send exports to the archive app</span>
+                            </label>
                             <label class="igd-export-settings-field">
                                 <span>Endpoint</span>
                                 <input name="endpoint" type="url" spellcheck="false" autocomplete="off" placeholder="${DEFAULT_ENDPOINT}">
@@ -190,7 +197,11 @@ const igexportPush = Object.freeze(
                 overlay.hidden = true;
             }
             function formSettings() {
-                return normalizeSettings({ endpoint: form.elements.endpoint.value, token: form.elements.token.value });
+                return normalizeSettings({
+                    endpoint: form.elements.endpoint.value,
+                    token: form.elements.token.value,
+                    enabled: form.elements.enabled.checked,
+                });
             }
             overlay.addEventListener('click', (event) => {
                 if (event.target === overlay) closeModal();
@@ -210,6 +221,12 @@ const igexportPush = Object.freeze(
             overlay.addEventListener('keydown', (event) => {
                 event.stopPropagation();
                 if (event.key === 'Escape') closeModal();
+            });
+            // Applies at once and alone: endpoint or token edits still wait for Save.
+            form.elements.enabled.addEventListener('change', async () => {
+                const settings = await readSettings();
+                settings.enabled = form.elements.enabled.checked;
+                await chrome.storage.local.set({ [STORAGE_KEY]: settings });
             });
             form.addEventListener('submit', async (event) => {
                 event.preventDefault();
@@ -238,6 +255,7 @@ const igexportPush = Object.freeze(
             const modal = document.querySelector(`.${MODAL_CLASS}`) ?? createSettingsModal();
             const settings = await readSettings();
             const form = modal.querySelector('form');
+            form.elements.enabled.checked = settings.enabled;
             form.elements.endpoint.value = settings.endpoint;
             form.elements.token.value = settings.token;
             form.elements.token.type = 'password';
